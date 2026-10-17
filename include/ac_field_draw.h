@@ -8,7 +8,11 @@
 extern "C" {
 #endif
 
+#ifdef TARGET_PC
+#define aFD_BLOCK_DRAW_NUM 25
+#else
 #define aFD_BLOCK_DRAW_NUM 9
+#endif
 
 typedef struct field_draw_s FIELD_DRAW_ACTOR;
 

@@ -20,6 +20,7 @@
 #include "m_common_data.h"
 #ifdef TARGET_PC
 #include "pc_platform.h"
+#include "pc_settings.h"
 #endif
 
 #ifdef MUST_MATCH
@@ -288,7 +289,11 @@ extern int Actor_draw_actor_no_culling_check(ACTOR* actor) {
 extern int Actor_draw_actor_no_culling_check2(ACTOR* actor, xyz_t* camera_pos, f32 camera_w) {
     int res = FALSE;
 
-    if (-actor->cull_radius < camera_pos->z && camera_pos->z < actor->cull_distance + actor->cull_radius) {
+    f32 cull_distance=actor->cull_distance;
+#ifdef TARGET_PC
+    if(g_pc_settings.camera_distance>100) cull_distance*=g_pc_settings.camera_distance*0.01f;
+#endif
+    if (-actor->cull_radius < camera_pos->z && camera_pos->z < cull_distance + actor->cull_radius) {
         f32 m = camera_w < 1.0f ? 1.0f : 1.0f / camera_w;
 #ifdef PC_ENHANCEMENTS
         /* Widescreen hor+ widens the rendered frustum.  The projection matrix

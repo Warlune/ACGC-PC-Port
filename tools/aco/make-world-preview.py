@@ -6,6 +6,7 @@ Never overwrites a save or edits the input. Output is a dev-only save format.
 import argparse,json,runpy,struct
 from pathlib import Path
 Disc=runpy.run_path(str(Path(__file__).with_name('disc-image.py')))['Disc']
+coastal_connections=runpy.run_path(str(Path(__file__).with_name('world-generation.py')))['coastal_connections']
 
 def assemble(source,destination,old,new,west,east,disc):
     if Path(source).resolve()==Path(destination).resolve():raise ValueError('Input/output must differ')
@@ -47,6 +48,7 @@ def assemble(source,destination,old,new,west,east,disc):
             for field,size in [('fg',512),('deposit',32)]:
                 p=new[field]+(z*19+x+7)*size;q=old[field]+(z*5+x)*size
                 if b[p:p+size]!=a[q:q+size]:raise ValueError('Center preservation failed')
+    connections=coastal_connections(b,new,templates,Path(__file__).resolve().parents[2])
     b[0x12:0x14]=bytes(2)
     checksum=(-sum(struct.unpack('>'+str(new['save_size']//2)+'H',b[:new['save_size']])))&65535
     struct.pack_into('>H',b,0x12,checksum)
@@ -57,7 +59,7 @@ def assemble(source,destination,old,new,west,east,disc):
     destination=Path(destination);destination.parent.mkdir(parents=True,exist_ok=True)
     with destination.open('xb') as f:f.write(header+data)
     return dict(center_acres_preserved=30,west_seed=west['seed'],east_seed=east['seed'],
-        native_generated_acres=60,columns=21,bytes=len(data)+64,passages=0,
+        native_generated_acres=60,columns=21,bytes=len(data)+64,coastal_connections=connections,
         checksum='passed; backup mirrors main',source_unchanged=True)
 
 if __name__=='__main__':

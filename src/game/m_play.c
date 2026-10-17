@@ -491,6 +491,9 @@ extern void play_init(GAME* game) {
     pc_dev_east_start(play);
 #endif
     mFM_FieldInit(play);
+#ifdef ACO_DEV_EAST
+    pc_dev_coast_field();
+#endif
     VR_Box_ct(play);
     mMmd_MakeMuseumDisplayData();
     Actor_info_ct(game, &play->actor_info, play->player_data);
@@ -540,6 +543,9 @@ static void Game_play_move_fbdemo_not_move(GAME* game) {
         game->doing_point = 0;
         game->doing_point_specific = 0x90;
         Actor_info_call_actor(play, &play->actor_info);
+#ifdef ACO_DEV_EAST
+        pc_dev_coast_tick(play);
+#endif
         game->doing_point = 0;
         game->doing_point_specific = 0x91;
         game->doing_point = 1;

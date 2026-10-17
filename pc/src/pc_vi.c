@@ -133,7 +133,8 @@ void VIWaitForRetrace(void) {
             else snprintf(title, sizeof(title), "Animal Crossing [Textures: %s]", texture_mode);
 #ifdef ACO_DEV_EAST
             snprintf(title,sizeof(title),"ACO World Dev [%s] - %.1f FPS [Textures: %s]",
-                g_pc_dev_east_spawn==1?"WEST":g_pc_dev_east_spawn==2?"EAST":"CENTER",fps,texture_mode);
+                g_pc_dev_east_spawn==1?"WEST":g_pc_dev_east_spawn==2?"EAST":
+                g_pc_dev_east_spawn==3?"SW COAST":g_pc_dev_east_spawn==4?"SE COAST":"CENTER",fps,texture_mode);
 #endif
             SDL_SetWindowTitle(g_pc_window, title);
             fps_start = now;

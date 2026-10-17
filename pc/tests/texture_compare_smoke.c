@@ -129,6 +129,23 @@ int main(void) {
     pc_gx_texture_cache_invalidate();
     require(!glIsTexture(original)&&glIsTexture(replacement),"cache deletes only owned originals");
     require(!glIsTexture(generated)&&!glIsTexture(palette_first),"runtime fallback ownership");
+    /* Populate and evict repeatedly, then compare every retained lookup with
+     * its full key. This catches broken bucket chains after array compaction. */
+    for(unsigned i=0;i<6000;i++) {
+        tex_cache_insert(0x1000+i*32,8,8,GX_TF_RGB565,0,i%17,i*7,i*13,0);
+        require(tex_cache_find(0x1000+i*32,8,8,GX_TF_RGB565,0,i%17,i*7,i*13)!=NULL,
+            "new indexed texture survives hash collisions");
+    }
+    unsigned first=6000-tex_cache_count;
+    for(unsigned i=0;i<6000;i++) {
+        TexCacheEntry* found=tex_cache_find(0x1000+i*32,8,8,GX_TF_RGB565,0,i%17,i*7,i*13);
+        require((found!=NULL)==(i>=first),"eviction reindexes every retained key and drops evicted keys");
+        require(!tex_cache_find(0x1000+i*32,8,8,GX_TF_RGB565,0,i%17,i*7+1,i*13),
+            "palette identity remains part of indexed lookup");
+    }
+    pc_gx_texture_cache_invalidate();
+    require(!tex_cache_find(0x1000+5999*32,8,8,GX_TF_RGB565,0,5999%17,5999*7,5999*13),
+        "cache invalidation clears bucket index");
     require(glGetError()==GL_NO_ERROR,"OpenGL error-free comparison");
     glDeleteTextures(1,&replacement);SDL_GL_DeleteContext(context);SDL_DestroyWindow(g_pc_window);SDL_Quit();
     puts("PASS: three modes, warm toggles, sampler parity, runtime 4x, alpha, wrap, dynamic palettes and ownership");

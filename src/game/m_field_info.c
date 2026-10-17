@@ -571,7 +571,7 @@ static int mFI_GetFreeRegisterBgInfo() {
     int res = -1;
     int i;
 
-    for (i = 0; i < mFM_VISIBLE_BLOCK_NUM; i++) {
+    for (i = 0; i < (g_fdinfo ? g_fdinfo->bg_num : mFM_VISIBLE_BLOCK_NUM); i++) {
         if (mFI_CheckFreeRegisterBgInfo(bg_info)) {
             res = i;
             break;
@@ -997,7 +997,7 @@ static int mFI_SearchNullDisp(int* idx) {
     return res;
 }
 
-static void mFI_BGDispMake(u8* disp_bitfield, int bx, int bz) {
+static void mFI_BGDispMake(u32* disp_bitfield, int bx, int bz) {
     int num = mFI_GetBlockNum(bx, bz);
     int idx;
 
@@ -1071,7 +1071,7 @@ static void mFI_WhereisInBlock(u8* pos_bitfield, xyz_t wpos) {
 }
 
 extern void mFI_BGDisplayListRefresh(xyz_t wpos) {
-    u8 disp_bitfield;
+    u32 disp_bitfield;
     u8 where_bitfield;
     int bx;
     int bz;
@@ -1084,6 +1084,32 @@ extern void mFI_BGDisplayListRefresh(xyz_t wpos) {
     disp_bitfield = 0;
     where_bitfield = 0;
     Common_Set(remove_cut_tree_info_bitfield, 0);
+#ifdef TARGET_PC
+    if(Save_Get(scene_no)==SCENE_FG && mFI_Wpos2BlockNum(&bx,&bz,wpos)) {
+        xyz_t local;
+        mFI_WpostoLposInBK(&local,wpos);
+        int x0=bx-(local.x<320.0f?2:1);
+        int z0=bz-(local.z<320.0f?2:1);
+        /* Release the outgoing outer ring before requesting replacements.
+         * Retained slots keep their allocations and foreground state. */
+        for(i=0;i<g_fdinfo->bg_num;i++) {
+            int x=g_fdinfo->bg_draw_info[i].block_x;
+            int z=g_fdinfo->bg_draw_info[i].block_z;
+            if(x<x0 || x>=x0+4 || z<z0 || z>=z0+4) {
+                g_fdinfo->bg_draw_info[i].dma_loaded=FALSE;
+                g_fdinfo->bg_draw_info[i].block_x=0xFF;
+                g_fdinfo->bg_draw_info[i].block_z=0xFF;
+                mFI_ClearRegisterBgInfoIdx(i);
+            }
+        }
+        for(int z=z0;z<z0+4;z++) for(int x=x0;x<x0+4;x++) {
+            if(mFI_BlockCheck(x,z) &&
+                g_fdinfo->block_info[mFI_GetBlockNum(x,z)].bg_info.bg_id.combination_type!=BG_TYPE_292)
+                mFI_BGDispMake(&disp_bitfield,x,z);
+        }
+        return;
+    }
+#endif
     if (mFI_Wpos2BlockNum(&bx, &bz, wpos)) {
         num = mFI_GetBlockNum(bx, bz);
 
@@ -1484,8 +1510,8 @@ extern int mFI_GetItemTable_NoReset(mFI_item_table_c* item_table, xyz_t wpos) {
     mFM_field_draw_info_c* bg_disp = mFI_BGDisplayListTop();
     int t_no;
     u8 _num = 0;
-    u8 _bitfield = 0;
-    u8 clear_tree_cut_bitfield = 0;
+    u32 _bitfield = 0;
+    u32 clear_tree_cut_bitfield = 0;
     int bx;
     int bz;
     int block_x_tbl[mFM_VISIBLE_BLOCK_NUM];

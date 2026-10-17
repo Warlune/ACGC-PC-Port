@@ -186,6 +186,12 @@ static void pc_profiler_print_report(void) {
     }
     printf("\n");
 
+    printf("[PROFILE] peak timers");
+    for (int i = 0; i < PC_PROF_TIMER_COUNT; i++) {
+        printf(" %s=%.3f", s_timer_names[i], s_peak.timers_ms[i]);
+    }
+    printf("\n");
+
     printf("[PROFILE] gl calls/state per frame: uniforms=%.1f lookups=%.1f tex_binds=%.1f buf_uploads=%.1f %.1fKB shader_switch=%.1f state=%.1f cmds=%.1f tris=%.1f vtxcmd=%.1f dl=%.1f cull=%.1f/%.1f\n",
            (double)s_accum.uniforms / n,
            (double)s_accum.uniform_lookups / n,
@@ -207,6 +213,7 @@ static void pc_profiler_print_report(void) {
         if (count > 0.0) printf(" %s=%.1f", s_dirty_names[i], count);
     }
     printf("\n");
+    fflush(stdout); /* one batched report write, never one write per field */
 }
 
 /* Marks the frame stats at VIWaitForRetrace but keeps the frame open: work

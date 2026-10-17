@@ -60,9 +60,44 @@ void pc_dev_east_diagnostics(void) {
 
 int g_pc_dev_east;
 int g_pc_dev_east_spawn;
+int g_pc_dev_coast_test;
+int g_pc_dev_test_stick;
+int pc_dev_ridge_side(int bx,int bz) {
+    if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz<1 || bz>5)return 0;
+    for(int seam=7;seam<BLOCK_X_NUM;seam+=7) {
+        if(bx==seam-1)return 1;
+        if(bx==seam)return -1;
+    }
+    return 0;
+}
+void pc_dev_coast_field(void) {
+    if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || !g_fdinfo)return;
+    const mCoBG_Collision_u grass={{0,4,4,4,4,4,mCoBG_ATTRIBUTE_GRASS0}};
+    for(int z=1;z<=5;z++) for(int x=1;x<BLOCK_X_NUM-1;x++) {
+        int side=pc_dev_ridge_side(x,z);
+        if(!side)continue;
+        mFM_bg_info_c* bg=&g_fdinfo->block_info[z*BLOCK_X_NUM+x].bg_info;
+        mCoBG_Collision_u source[UT_Z_NUM][UT_X_NUM];
+        memcpy(source,bg->collision,sizeof(source));
+        for(int uz=0;uz<UT_Z_NUM;uz++) for(int ux=0;ux<UT_X_NUM;ux++) {
+            int source_z=z==5?(uz*2+1)/3:uz;
+            mCoBG_Collision_u c=source[source_z][(side>0?0:12)+ux/4];
+            if(z==5 && (mCoBG_CheckWaterAttribute(c.data.unit_attribute) ||
+                mCoBG_CheckWaveAttr(c.data.unit_attribute))) c=grass;
+            bg->collision[uz][ux]=c;
+            bg->keep_h[uz][ux]=c.data.center;
+        }
+    }
+}
 extern int pc_save_loaded;
 static int dev_player;
 static void choose_spawn(void) {
+    if(g_pc_dev_east_spawn>=3) {
+        Common_Set(door_data.exit_position.x,g_pc_dev_coast_test?
+            (g_pc_dev_east_spawn==3?5220:8220):(g_pc_dev_east_spawn==3?4480:8960));
+        Common_Set(door_data.exit_position.z,4020);
+        return;
+    }
     int offset=g_pc_dev_east_spawn==1?0:g_pc_dev_east_spawn==2?14:7;
     int best=1000,best_x=-1,best_z=-1;
     for(int z=5;z>=2;z--) for(int x=1;x<=5;x++) {
@@ -122,5 +157,31 @@ void pc_dev_east_start(GAME_PLAY* play) {
     if(play->player_data)play->player_data->position=Common_Get(door_data.exit_position);
     mFM_SetBlockKindLoadCombi();
     printf("[DevWorld] Three adjacent towns ready in outdoor scene %d; generated beaches/railways retained\n",Save_Get(scene_no));
+}
+void pc_dev_coast_tick(GAME_PLAY* play) {
+    if(!g_pc_dev_coast_test)return;
+    static int frames,stage;
+    PLAYER_ACTOR* p=get_player_actor_withoutCheck(play);
+    if(!p)return;
+    xyz_t pos=p->actor_class.world.position;
+    int direction=g_pc_dev_east_spawn==3?-1:1;
+    float start=g_pc_dev_east_spawn==3?5220:8220;
+    frames++;
+    if(frames==120) {stage=1;g_pc_dev_test_stick=direction*80;}
+    if(stage==1 && (pos.x-start)*direction>=1500) {
+        printf("[CoastTest] Reached side town x=%.1f z=%.1f scene=%d\n",pos.x,pos.z,Save_Get(scene_no));
+        stage=2;g_pc_dev_test_stick=-direction*80;
+    }
+    if(stage==2 && (pos.x-start)*direction<=0) {
+        printf("[CoastTest] PASS: %s route both ways using controller/collision, scene=%d position=(%.1f,%.1f,%.1f)\n",
+            direction<0?"SW":"SE",Save_Get(scene_no),pos.x,pos.y,pos.z);
+        stage=3;g_pc_dev_test_stick=0;
+    }
+    if(frames%480==0 && stage!=3)
+        printf("[CoastTest] stage=%d x=%.1f z=%.1f scene=%d\n",stage,pos.x,pos.z,Save_Get(scene_no));
+    if(frames==12000 && stage!=3) {
+        fprintf(stderr,"[CoastTest] FAIL: stage=%d x=%.1f z=%.1f scene=%d\n",stage,pos.x,pos.z,Save_Get(scene_no));
+        g_pc_dev_test_stick=0;
+    }
 }
 #endif

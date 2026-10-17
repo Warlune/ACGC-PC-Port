@@ -3,6 +3,7 @@
 #include "pc_typing.h"
 #include "pc_keybindings.h"
 #include "pc_settings.h"
+#include "pc_dev_east.h"
 #include <dolphin/pad.h>
 
 /* analog stick constants */
@@ -170,6 +171,13 @@ u32 PADRead(PADStatus* status) {
     status[0].substickX = cstickX;
     status[0].substickY = cstickY;
     status[0].err = 0; /* PAD_ERR_NONE */
+#ifdef ACO_DEV_EAST
+    if(g_pc_dev_coast_test) {
+        status[0].button=0;
+        status[0].stickX=g_pc_dev_test_stick;
+        status[0].stickY=status[0].substickX=status[0].substickY=0;
+    }
+#endif
 
     return PAD_CHAN0_BIT; /* Controller 1 connected */
 }

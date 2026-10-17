@@ -8,6 +8,10 @@
 #include "m_common_data.h"
 #include "m_rcp.h"
 #include "sys_matrix.h"
+#ifdef ACO_DEV_EAST
+#include "pc_dev_east.h"
+extern Gfx grd_s_f_1_model[];
+#endif
 
 static void Bg_Draw_Actor_ct(ACTOR* actorx, GAME* game);
 static void Bg_Draw_Actor_dt(ACTOR* actorx, GAME* game);
@@ -225,8 +229,15 @@ static void aFD_PrepareFieldDraw(ACTOR* actorx, GAME* game) {
     aFD_SetActorPosition(actorx, play);
 
     for (i = 0; i < aFD_BLOCK_DRAW_NUM; i++) {
+#ifdef TARGET_PC
+        /* Terrain has no streaming allocation; draw a stable outer ring so
+         * widened/150% camera frusta cannot expose the old 3x3 boundary. */
+        block->bx = bx + i%5-2;
+        block->bz = bz + 2-i/5;
+#else
         block->bx = bx + draw_block_offset_table[i].offset_x;
         block->bz = bz + draw_block_offset_table[i].offset_z;
+#endif
         mFI_BkNum2WposXZ(&block->wpos.x, &block->wpos.z, block->bx, block->bz);
         block->wpos.y = mFI_BkNum2BaseHeight(block->bx, block->bz);
         block->exist = TRUE;
@@ -444,7 +455,32 @@ static void aFD_DrawBlock(aFD_block_c* block, ACTOR* actorx, GAME* game) {
         xlu_gfx = mFI_GetBGDisplayListRom_XLU(block->bx, block->bz);
         anime_data = mFI_GetBGTexAnimInfo(&anime_frame_count, block->bx, block->bz);
 
+#ifdef ACO_DEV_EAST
+        int ridge=pc_dev_ridge_side(block->bx,block->bz);
+        if(ridge && block->bz==5) {
+            /* Exterior mountain caps contain ocean behind the rock. A dry
+             * native field underlay makes this an inland mountain foot. */
+            Matrix_translate(block->wpos.x,block->wpos.y+0.25f,block->wpos.z,MTX_LOAD);
+            Matrix_scale(0.0625f,0.0625f,0.0625f,MTX_MULT);
+            _texture_z_light_fog_prim_bg(game->graph);
+            OPEN_DISP(game->graph);
+            gSPMatrix(NEXT_BG_OPA_DISP,_Matrix_to_Mtx_new(game->graph),G_MTX_NOPUSH|G_MTX_LOAD|G_MTX_MODELVIEW);
+            gSPDisplayList(NEXT_BG_OPA_DISP,grd_s_f_1_model);
+            CLOSE_DISP(game->graph);
+            xlu_gfx=NULL;
+        }
+#endif
+
         Matrix_translate(block->wpos.x, block->wpos.y, block->wpos.z, MTX_LOAD);
+#ifdef ACO_DEV_EAST
+        /* Native exterior ridges occupy only the inner 160 units of their
+         * 640-unit border acre. Fill each shared seam with the native rock
+         * shape, using exactly the same X mapping as its collision grid. */
+        if(ridge) {
+            if(ridge<0)Matrix_translate(-1920.0f,0,0,MTX_MULT);
+            Matrix_scale(4.0f,1.0f,block->bz==5?1.5f:1.0f,MTX_MULT);
+        }
+#endif
         Matrix_scale(0.0625f, 0.0625f, 0.0625f, MTX_MULT);
         _texture_z_light_fog_prim_xlu(game->graph);
         _texture_z_light_fog_prim_bg(game->graph);

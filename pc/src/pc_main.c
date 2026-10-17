@@ -308,6 +308,9 @@ int main(int argc, char* argv[]) {
         else if (strcmp(argv[i], "--dev-world") == 0) { g_pc_dev_east=1; }
         else if (strcmp(argv[i], "--dev-west") == 0) { g_pc_dev_east_spawn=1; }
         else if (strcmp(argv[i], "--dev-east") == 0) { g_pc_dev_east_spawn=2; }
+        else if (strcmp(argv[i], "--dev-sw") == 0) { g_pc_dev_east_spawn=3; }
+        else if (strcmp(argv[i], "--dev-se") == 0) { g_pc_dev_east_spawn=4; }
+        else if (strcmp(argv[i], "--dev-coast-test") == 0) { g_pc_dev_coast_test=1; }
 #endif
         else if (strcmp(argv[i], "--framelimit") == 0) {
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -379,8 +382,10 @@ int main(int argc, char* argv[]) {
         freopen("/dev/null", "w", stderr);
 #endif
     } else {
-        setvbuf(stdout, NULL, _IONBF, 0);
-        setvbuf(stderr, NULL, _IONBF, 0);
+        /* Diagnostics can be redirected to a NAS. Hundreds of unbuffered
+         * printf fragments per report caused visible periodic stalls. */
+        setvbuf(stdout, NULL, _IOFBF, 64*1024);
+        setvbuf(stderr, NULL, _IOFBF, 16*1024);
     }
 
 #ifdef ACO_DEV_EAST

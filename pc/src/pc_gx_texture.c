@@ -38,6 +38,7 @@ typedef struct {
     u32 wrap_t;
     u32 min_filter;
     int anisotropy;
+    int hash_next;
 } TexCacheEntry;
 
 /* Bits-per-pixel for each GC texture format (8 for unknown as safe default) */
@@ -102,12 +103,28 @@ static TexCacheEntry tex_cache[TEX_CACHE_SIZE];
 static int tex_cache_count = 0;
 static int tex_cache_hits = 0;
 static int tex_cache_misses = 0;
+static int tex_cache_buckets[4096]; /* index+1; zero is empty */
 
-/* Linear scan. Fine for <=2048 entries at ~100% hit rate. */
+static unsigned tex_cache_bucket(u32 ptr,int w,int h,u32 fmt,u32 name,u32 pal,u32 ph,u32 dh) {
+    u32 key=ptr ^ (u32)w*0x9e3779b9u ^ (u32)h*0x85ebca6bu ^ fmt*31u ^ name ^ pal ^ ph ^ dh;
+    key^=key>>16;key*=0x7feb352du;key^=key>>15;
+    return key & 4095;
+}
+static void tex_cache_reindex(void) {
+    memset(tex_cache_buckets,0,sizeof(tex_cache_buckets));
+    for(int i=0;i<tex_cache_count;i++) {
+        TexCacheEntry* e=&tex_cache[i];
+        unsigned b=tex_cache_bucket(e->data_ptr,e->width,e->height,e->format,e->tlut_name,e->tlut_ptr,e->tlut_hash,e->data_hash);
+        e->hash_next=tex_cache_buckets[b];tex_cache_buckets[b]=i+1;
+    }
+}
+
+/* Full content/palette identity is still checked after the bucket lookup. */
 static TexCacheEntry* tex_cache_find(u32 data_ptr, int w, int h, u32 fmt, u32 tlut_name,
                                      u32 tlut_ptr, u32 tlut_hash, u32 data_hash) {
-    for (int i = 0; i < tex_cache_count; i++) {
-        TexCacheEntry* e = &tex_cache[i];
+    unsigned bucket=tex_cache_bucket(data_ptr,w,h,fmt,tlut_name,tlut_ptr,tlut_hash,data_hash);
+    for (int link=tex_cache_buckets[bucket];link;link=tex_cache[link-1].hash_next) {
+        TexCacheEntry* e = &tex_cache[link-1];
         if (e->data_ptr == data_ptr && e->width == w && e->height == h &&
             e->format == fmt && e->tlut_name == tlut_name && e->tlut_ptr == tlut_ptr &&
             e->tlut_hash == tlut_hash && e->data_hash == data_hash) {
@@ -136,6 +153,7 @@ static TexCacheEntry* tex_cache_insert(u32 data_ptr, int w, int h, u32 fmt, u32 
         }
         memmove(&tex_cache[0], &tex_cache[half], (tex_cache_count - half) * sizeof(TexCacheEntry));
         tex_cache_count -= half;
+        tex_cache_reindex();
     }
     TexCacheEntry* e = &tex_cache[tex_cache_count++];
     e->data_ptr = data_ptr;
@@ -153,6 +171,8 @@ static TexCacheEntry* tex_cache_insert(u32 data_ptr, int w, int h, u32 fmt, u32 
     e->wrap_t = 0xFFFFFFFF;
     e->min_filter = 0xFFFFFFFF;
     e->anisotropy = 0;
+    unsigned bucket=tex_cache_bucket(data_ptr,w,h,fmt,tlut_name,tlut_ptr,tlut_hash,data_hash);
+    e->hash_next=tex_cache_buckets[bucket];tex_cache_buckets[bucket]=tex_cache_count;
     return e;
 }
 
@@ -164,10 +184,12 @@ void pc_gx_texture_cache_invalidate(void) {
         if (tex_cache[i].all_tex) glDeleteTextures(1, &tex_cache[i].all_tex);
     }
     tex_cache_count = 0;
+    memset(tex_cache_buckets,0,sizeof(tex_cache_buckets));
 }
 
 void pc_gx_texture_init(void) {
     tex_cache_count = 0;
+    memset(tex_cache_buckets,0,sizeof(tex_cache_buckets));
     tex_cache_hits = 0;
     tex_cache_misses = 0;
     (void)pc_gx_tlut_force_be();

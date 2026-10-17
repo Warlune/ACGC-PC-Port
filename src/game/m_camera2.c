@@ -226,6 +226,10 @@ static void Camera2_SetView(GAME_PLAY* play) {
             }
 
             camera->perspective.far = 1600.0f;
+#ifdef TARGET_PC
+            if(g_pc_settings.camera_distance>100)
+                camera->perspective.far*=g_pc_settings.camera_distance*0.01f;
+#endif
         }
     }
 
