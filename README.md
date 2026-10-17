@@ -8,7 +8,7 @@ Current additions include a native Windows File / Graphics / View / Help menu, l
 
 F6 cycles **Original → Current pack → Everything 4x**. Graphics → Texture source selects each mode directly. Everything mode uses installed replacements and generates runtime Scale2x fallbacks for other decoded textures, including characters, fonts, menus and changing palettes. The runtime fallback is filtered scaling, not AI reconstruction. Texture packs and game assets are not included in this repository.
 
-**Not implemented:** online co-op, a persistent NAS server, DLSS/DLAA or an additional graphics backend. These remain development targets. Existing AI texture seams still need refinement. See [ACO development notes](docs/aco/README.md) for validation and plans.
+The [co-op host foundation](host/README.md) now supports Windows and Linux: persistent shared-map edits, separate player credentials, conflict checks, reconnect events and restart-safe command replay. It is a standalone protocol prototype; native game integration and playable multiplayer are not implemented. NAS deployment, DLSS/DLAA and an additional graphics backend remain development targets. Existing AI texture seams still need refinement. See [ACO development notes](docs/aco/README.md) for validation and plans.
 
 Build this fork from source using the instructions below or `Build Native.cmd` with a local MINGW32 toolchain. The prebuilt release links below refer to the upstream project, not these additions.
 

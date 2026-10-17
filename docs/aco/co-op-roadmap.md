@@ -3,10 +3,10 @@
 ## Requested behavior
 
 - Native Windows clients, no Dolphin at runtime.
-- Dedicated Linux server hosted on a QNAP NAS; exact CPU and QNAP model are still unknown.
+- Dedicated host on Windows PCs or Linux, with QNAP NAS deployment as a target; exact CPU and QNAP model are still unknown.
 - One persistent town available when either player joins, without the other player hosting.
 - Two independently controlled characters and shared permissions to build and change the map.
-- User's current priority: establish the native PC port first.
+- Native client verification is ongoing; co-op host foundation work has started independently.
 
 ## Current baseline
 
@@ -40,4 +40,8 @@ These are candidate integration points. Not all world mutations necessarily pass
 
 Two native Windows clients connect to the same server. Each controls a distinct visible character. One places an object and the other sees it. Both clients disconnect; the server restarts; either player reconnects and the object remains. Conflicting edits cannot duplicate items or lose a committed change.
 
-No server component has been implemented or deployed yet.
+## Host prototype now implemented
+
+`host/` contains a Windows/Linux Python/SQLite map service, diagnostic clients, a portable archive builder, a Linux container definition, and cross-platform CI. Two clients can edit one sparse map with per-tile conflict checks, durable transactions, reconnect events and persisted accepted-command replay. No game assets are needed on the host. See [host setup and protocol](../../host/README.md).
+
+This is a synthetic foreground-map foundation, not an authoritative Animal Crossing town or playable co-op. Native clients are not connected; game saves and running windows remain untouched. Terrain/town import, real-time player movement, independent actors, inventory/game-rule validation, interiors and NPC simulation remain to be implemented. No server has been deployed to the NAS.

@@ -1,0 +1,31 @@
+name: Co-op host
+on:
+  push:
+    paths: ['host/**', '.github/workflows/host.yml']
+  pull_request:
+    paths: ['host/**', '.github/workflows/host.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python: ['3.11', '3.12', '3.13']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Test shared state, protocol, concurrency and restart
+        working-directory: host
+        run: python -m unittest discover -s tests -v
+      - name: Build portable host archive
+        run: python host/build.py
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t aco-host-test host
+      - run: docker run --rm --entrypoint python aco-host-test -m unittest discover -s tests -v

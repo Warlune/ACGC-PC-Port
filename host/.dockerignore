@@ -1,0 +1,8 @@
+*
+!aco_host/
+!aco_host/**
+!tests/
+!tests/**
+!build.py
+**/__pycache__/
+**/*.pyc
