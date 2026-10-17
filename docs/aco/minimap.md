@@ -1,0 +1,9 @@
+# Town minimap
+
+Options/Settings → HUD has Minimap On/Off, Map size Small/Medium/Large, and Map opacity 0–100% in 5% steps. Defaults: On, Small, 30%. Left/Right and controller navigation adjust the controls; Apply commits and saves them. Pending edits can be discarded normally. Settings keys are `minimap`, `minimap_size` (0/1/2), and `minimap_opacity`.
+
+The HUD lives at the top-right during ordinary outdoor town play. It reads the game's current 5x6 acre layout from `g_block_type_p` and draws the same original terrain/landmark map textures and palettes used by the full map. The full map's optional added-bridge mapping is reused. The yellow player marker follows world X/Z continuously. This is a read-only overlay; no map generation, save modification or multiplayer assumptions are involved.
+
+`src/game/m_map_ovl.c` exports a bounded tile-art lookup; `pc/src/pc_minimap.c` emits the overlay into the font display list after normal scene drawing. Full-window coordinates anchor it at the real screen edge; horizontal compensation keeps acres square at different aspect ratios. Opacity modulates map, backing and marker alpha. It hides while disabled/fully transparent, indoors, outside foreground town bounds, in title demos, during pause, framebuffer transitions and submenus. It does not add interior/island maps, villager markers or separate player-house overlays.
+
+`pc/tests/minimap_layout_smoke.c` verifies marker geography, boundaries, screen bounds, square acres and right-edge anchoring over three sizes and five output aspect ratios. It also runs the actual HUD command producer with fixture map art to verify acre/marker emission, opacity propagation, and visibility guards without creating or controlling a window. Build the `minimap_layout_smoke` target and run its executable. Full-game appearance still needs a visual check after the user finishes their current testing; do not claim command checks are pixel-level visual validation.

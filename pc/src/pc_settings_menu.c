@@ -33,6 +33,9 @@ enum {
     ITEM_SHOP_VISITOR,
     ITEM_BORDERLESS_ACRES,
     ITEM_CAMERA_DISTANCE,
+    ITEM_MINIMAP,
+    ITEM_MINIMAP_SIZE,
+    ITEM_MINIMAP_OPACITY,
     ITEM_NES_ASPECT,
     ITEM_MASTER_VOLUME,
     ITEM_STICK_DEADZONE,
@@ -70,6 +73,12 @@ static const Item tab_audio_items[] = {
     { "Master volume", ITEM_MASTER_VOLUME, 0 },
 };
 
+static const Item tab_hud_items[] = {
+    { "Minimap", ITEM_MINIMAP, 0 },
+    { "Map size", ITEM_MINIMAP_SIZE, 0 },
+    { "Map opacity", ITEM_MINIMAP_OPACITY, 0 },
+};
+
 static const Item tab_image_items[] = {
     { "Texture source", ITEM_TEXTURE_SOURCE, 0 },
     { "Render scale", ITEM_RENDER_SCALE, 0 },
@@ -96,6 +105,7 @@ typedef struct {
 static const Tab s_tabs[] = {
     { "Video",    TAB_ITEMS(tab_video_items) },
     { "Image",    TAB_ITEMS(tab_image_items) },
+    { "HUD",      TAB_ITEMS(tab_hud_items) },
     { "Audio",    TAB_ITEMS(tab_audio_items) },
     { "Controls", TAB_ITEMS(tab_controls_items) },
     { "Gameplay", TAB_ITEMS(tab_gameplay_items) },
@@ -281,6 +291,9 @@ static void recompute_dirty(void) {
         (s_pending.disable_shop_visitor_req != g_pc_settings.disable_shop_visitor_req) ||
         (s_pending.borderless_acres != g_pc_settings.borderless_acres) ||
         (s_pending.camera_distance != g_pc_settings.camera_distance) ||
+        (s_pending.minimap != g_pc_settings.minimap) ||
+        (s_pending.minimap_size != g_pc_settings.minimap_size) ||
+        (s_pending.minimap_opacity != g_pc_settings.minimap_opacity) ||
         (s_pending.nes_aspect       != g_pc_settings.nes_aspect) ||
         (s_pending.master_volume    != g_pc_settings.master_volume) ||
         (s_pending.stick_deadzone   != g_pc_settings.stick_deadzone) ||
@@ -371,6 +384,15 @@ static void item_cycle(int id, int dir) {
         case ITEM_NES_ASPECT:
             s_pending.nes_aspect = !s_pending.nes_aspect;
             break;
+        case ITEM_MINIMAP: s_pending.minimap = !s_pending.minimap; break;
+        case ITEM_MINIMAP_SIZE:
+            s_pending.minimap_size = (s_pending.minimap_size+(dir>0?1:2))%3;
+            break;
+        case ITEM_MINIMAP_OPACITY:
+            s_pending.minimap_opacity += dir>0?5:-5;
+            if (s_pending.minimap_opacity<0) s_pending.minimap_opacity=0;
+            if (s_pending.minimap_opacity>100) s_pending.minimap_opacity=100;
+            break;
         case ITEM_MASTER_VOLUME: {
             int v = s_pending.master_volume + (dir > 0 ? 10 : -10);
             if (v < 0)   v = 0;
@@ -450,6 +472,12 @@ static void item_format(int id, char* buf, size_t n) {
         case ITEM_CAMERA_DISTANCE:
             snprintf(buf, n, "%d%%", s_pending.camera_distance);
             break;
+        case ITEM_MINIMAP: snprintf(buf,n,"< %s >",s_pending.minimap?"On":"Off"); break;
+        case ITEM_MINIMAP_SIZE: {
+            static const char* names[]={"Small","Medium","Large"};
+            snprintf(buf,n,"< %s >",names[s_pending.minimap_size]);
+        } break;
+        case ITEM_MINIMAP_OPACITY: snprintf(buf,n,"%d%%",s_pending.minimap_opacity); break;
         case ITEM_NES_ASPECT:
             snprintf(buf, n, "%s", s_pending.nes_aspect ? "< 4:3 >" : "< Stretch >");
             break;
@@ -493,6 +521,9 @@ static int item_changed(int id) {
         case ITEM_SHOP_VISITOR: return s_pending.disable_shop_visitor_req != g_pc_settings.disable_shop_visitor_req;
         case ITEM_BORDERLESS_ACRES: return s_pending.borderless_acres != g_pc_settings.borderless_acres;
         case ITEM_CAMERA_DISTANCE: return s_pending.camera_distance != g_pc_settings.camera_distance;
+        case ITEM_MINIMAP: return s_pending.minimap != g_pc_settings.minimap;
+        case ITEM_MINIMAP_SIZE: return s_pending.minimap_size != g_pc_settings.minimap_size;
+        case ITEM_MINIMAP_OPACITY: return s_pending.minimap_opacity != g_pc_settings.minimap_opacity;
         case ITEM_NES_ASPECT:    return s_pending.nes_aspect    != g_pc_settings.nes_aspect;
         case ITEM_MASTER_VOLUME: return s_pending.master_volume != g_pc_settings.master_volume;
         case ITEM_STICK_DEADZONE:  return s_pending.stick_deadzone  != g_pc_settings.stick_deadzone;
@@ -847,14 +878,15 @@ static void draw_tab_row(struct game_s* game, f32 y) {
     /* Pre-measure widths and total horizontal extent so we can centre. */
     int widths[TAB_COUNT];
     int total = 0;
-    const int gap_px = 18;
+    const int gap_px = 12;
     for (int t = 0; t < TAB_COUNT; t++) {
         widths[t] = pc_text_width(s_tabs[t].name);
         total += widths[t];
     }
     total += gap_px * (TAB_COUNT - 1);
 
-    f32 x = (SCREEN_WIDTH_F - (f32)total) * 0.5f;
+    f32 tab_scale=total>SCREEN_WIDTH_F-24 ? (SCREEN_WIDTH_F-24)/(f32)total : 1.0f;
+    f32 x = (SCREEN_WIDTH_F - (f32)total*tab_scale) * 0.5f;
     for (int t = 0; t < TAB_COUNT; t++) {
         const char* name = s_tabs[t].name;
         int active = (t == s_tab);
@@ -866,9 +898,9 @@ static void draw_tab_row(struct game_s* game, f32 y) {
         /* Active tab + cursor-on-tab-row gets the full bump; active but
          * cursor-off-tab-row stays normal size (the white color already
          * marks it). Inactive tabs render normal too. */
-        f32 s = (active && on_tab_row) ? PC_MENU_SCALE_SELECTED : 1.0f;
+        f32 s = ((active && on_tab_row) ? PC_MENU_SCALE_SELECTED : 1.0f)*tab_scale;
         pc_text_draw(game, name, x, y, r, g, b, a, s);
-        x += (f32)widths[t] + (f32)gap_px;
+        x += ((f32)widths[t] + (f32)gap_px)*tab_scale;
     }
 }
 
@@ -898,9 +930,9 @@ static void draw_settings_page(struct game_s* game) {
         pc_menu_row_colors(selected, &r, &g, &b, &a);
         pc_menu_draw_left(game, it->label, lx, y, r, g, b, a, s);
         value_colors(selected, changed, &r, &g, &b, &a);
-        if (it->id == ITEM_CAMERA_DISTANCE) {
+        if (it->id == ITEM_CAMERA_DISTANCE || it->id == ITEM_MINIMAP_OPACITY) {
             pc_menu_draw_slider(game->graph, vx, y, 58.0f,
-                (s_pending.camera_distance-75)/75.0f, selected);
+                it->id==ITEM_CAMERA_DISTANCE ? (s_pending.camera_distance-75)/75.0f : s_pending.minimap_opacity/100.0f, selected);
             pc_menu_draw_left(game, value_buf, vx+66.0f, y, r, g, b, a, 0.85f);
         } else {
             pc_menu_draw_left(game, value_buf, vx, y, r, g, b, a, s);

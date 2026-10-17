@@ -7,6 +7,7 @@ Source baseline: FlyingMeta's ACGC-PC-Port v0.9.3-playtest, commit `4099d246c927
 - [Co-op/server roadmap](co-op-roadmap.md)
 - [Windows/Linux host setup and protocol](../../host/README.md)
 - [Host validation results](host-validation.json)
+- [Town minimap and HUD options](minimap.md)
 - [Texture tooling](../../tools/aco/README.md)
 
 The local build and real-driver integration checks passed. `pc/tests/graphics_smoke.c` tests 60 graphics combinations; `pc/tests/texture_compare_smoke.c` covers original/pack/runtime variants, cache reuse, sampler parity, transparency, addressing, dynamic palettes, absent-pack behavior and resource ownership. Build the `graphics_smoke` and `texture_compare_smoke` CMake targets and run their executables from an SDL2-enabled environment. Neither test requires a game image.

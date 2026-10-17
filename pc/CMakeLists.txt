@@ -293,6 +293,7 @@ set(PC_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_pause_menu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_settings_menu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_menu_util.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_minimap.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_text_draw.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_keybindings.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_nes_fixnes.c
@@ -518,6 +519,23 @@ if(MINGW)
     target_link_options(texture_compare_smoke PRIVATE -static-libgcc)
 endif()
 set_target_properties(texture_compare_smoke PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+
+# Windowless geometry and HUD command checks with fixture map data.
+add_executable(minimap_layout_smoke EXCLUDE_FROM_ALL tests/minimap_layout_smoke.c src/pc_minimap.c)
+target_compile_options(minimap_layout_smoke PRIVATE -ffunction-sections -fdata-sections)
+target_link_options(minimap_layout_smoke PRIVATE -Wl,--gc-sections)
+if(TARGET SDL2::SDL2)
+    target_link_libraries(minimap_layout_smoke SDL2::SDL2)
+else()
+    target_link_libraries(minimap_layout_smoke ${SDL2_LIBRARIES})
+endif()
+if(MINGW)
+    target_link_options(minimap_layout_smoke PRIVATE -static-libgcc)
+else()
+    target_link_libraries(minimap_layout_smoke m)
+endif()
+set_target_properties(minimap_layout_smoke PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
 install(TARGETS ac_pc RUNTIME DESTINATION bin)

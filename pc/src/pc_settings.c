@@ -26,6 +26,9 @@ PCSettings g_pc_settings = {
     .disable_shop_visitor_req = 0,
     .borderless_acres = 1,
     .camera_distance = 100,
+    .minimap = 1,
+    .minimap_size = 0,
+    .minimap_opacity = 30,
     .nes_aspect = 1,
     .master_volume = 100,
     .stick_deadzone = 12,
@@ -80,6 +83,10 @@ static const char* DEFAULT_SETTINGS =
     "\n"
     "# NES emulator aspect ratio: 0 = stretch to fullscreen, 1 = 4:3 pillarbox\n"
     "nes_aspect = 1\n"
+    "\n[HUD]\n"
+    "minimap = 1\n"
+    "minimap_size = 0\n"
+    "minimap_opacity = 30\n"
     "\n"
     "[Audio]\n"
     "# Master output volume as a percentage (0-100)\n"
@@ -147,6 +154,12 @@ static void apply_setting(const char* key, const char* value) {
         if (val == 0 || val == 1) g_pc_settings.borderless_acres = val;
     } else if (strcmp(key, "camera_distance") == 0) {
         if (val >= 75 && val <= 150) g_pc_settings.camera_distance = val;
+    } else if (strcmp(key, "minimap") == 0) {
+        if (val == 0 || val == 1) g_pc_settings.minimap = val;
+    } else if (strcmp(key, "minimap_size") == 0) {
+        if (val >= 0 && val <= 2) g_pc_settings.minimap_size = val;
+    } else if (strcmp(key, "minimap_opacity") == 0) {
+        if (val >= 0 && val <= 100) g_pc_settings.minimap_opacity = val;
     } else if (strcmp(key, "nes_aspect") == 0) {
         if (val == 0 || val == 1) g_pc_settings.nes_aspect = val;
     } else if (strcmp(key, "master_volume") == 0) {
@@ -246,6 +259,10 @@ void pc_settings_save(void) {
     fprintf(f, "\n");
     fprintf(f, "# NES emulator aspect ratio: 0 = stretch to fullscreen, 1 = 4:3 pillarbox\n");
     fprintf(f, "nes_aspect = %d\n", g_pc_settings.nes_aspect);
+    fprintf(f, "\n[HUD]\n");
+    fprintf(f, "minimap = %d\n", g_pc_settings.minimap);
+    fprintf(f, "minimap_size = %d\n", g_pc_settings.minimap_size);
+    fprintf(f, "minimap_opacity = %d\n", g_pc_settings.minimap_opacity);
     fprintf(f, "\n");
     fprintf(f, "[Audio]\n");
     fprintf(f, "# Master output volume as a percentage (0-100)\n");

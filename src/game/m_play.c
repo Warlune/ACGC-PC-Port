@@ -1,4 +1,7 @@
 #include "m_play.h"
+#ifdef TARGET_PC
+#include "pc_minimap.h"
+#endif
 
 #include "evw_anime.h"
 #include "m_common_data.h"
@@ -839,6 +842,9 @@ static void Game_play_draw(GAME_PLAY* play) {
             watch_my_step_draw(play);
             banti_draw(play);
             mSM_submenu_draw(&play->submenu, (GAME*)play);
+#ifdef TARGET_PC
+            pc_minimap_draw(play);
+#endif
         }
     }
     if (zurumode_flag != 0) {

@@ -1,0 +1,21 @@
+{
+  "feature": "Top-right town minimap",
+  "native_build": "passed",
+  "sha256": "DBD86E76B74476FB8016DD05F4399A1D62DCF62644C39E36CB1A202C380BCF33",
+  "defaults": {
+    "opacity_percent": 30,
+    "size": "Small",
+    "enabled": 1
+  },
+  "options": "Options/Settings > HUD: Minimap, Map size, Map opacity",
+  "windowless_checks": "Passed 15 layout combinations, marker geography, acre aspect, screen bounds, right-edge anchoring, actual HUD command emission, opacity propagation and visibility guards",
+  "full_game": "Preview booted to title/demo; live-town visual verification is pending user testing",
+  "preview": "native-minimap-preview; isolated copy of previous test save",
+  "runtime_stderr_bytes": 0,
+  "original_window": "No UI input, activation, resizing or termination",
+  "limits": [
+    "Outdoor main town only; hidden indoors, during menus and transitions",
+    "No additional villager or player-house markers",
+    "Command/layout checks do not establish pixel-level appearance"
+  ]
+}

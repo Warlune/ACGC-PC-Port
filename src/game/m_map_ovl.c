@@ -456,6 +456,23 @@ static u16 kan_tizu2_pal[16] ATTRIBUTE_ALIGN(32) = {
 
 static u16* l_kan_tizu_pal[2] = { kan_tizu1_pal, kan_tizu2_pal };
 
+#ifdef TARGET_PC
+/* Reuse the full map's palette/art and optional bridge mapping without
+ * creating or changing the submenu overlay. All arrays load at asset init. */
+int pc_minimap_get_tile(int bx, int bz, const u8** texture, const u16** palette) {
+    if (!texture || !palette || !g_block_type_p || bx<1 || bx>FG_BLOCK_X_NUM ||
+        bz<1 || bz>FG_BLOCK_Z_NUM) return FALSE;
+    int type=g_block_type_p[BLOCKXZ_2_BLOCKIDX(bx,bz)];
+    if (type<0 || type>=mFM_BLOCK_TYPE_NUM) return FALSE;
+    if (Save_Get(bridge.exists) && Save_Get(bridge.block_x)==bx && Save_Get(bridge.block_z)==bz &&
+        pluss_bridge[type]!=0xFF) type=pluss_bridge[type];
+    if (type>=mFM_BLOCK_TYPE_NUM) return FALSE;
+    *texture=l_map_texture[type];
+    *palette=l_kan_tizu_pal[l_map_pal[type]];
+    return *texture!=NULL;
+}
+#endif
+
 extern u8 kan_win_suuji1_tex_rgb_ia8[];
 extern u8 kan_win_suuji2_tex_rgb_ia8[];
 extern u8 kan_win_suuji3_tex_rgb_ia8[];
