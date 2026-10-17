@@ -10,6 +10,7 @@
 #include "sys_matrix.h"
 #ifdef ACO_DEV_EAST
 #include "pc_dev_east.h"
+#include "pc_dev_coast_walls.h"
 extern Gfx grd_s_f_1_model[];
 #endif
 
@@ -469,6 +470,9 @@ static void aFD_DrawBlock(aFD_block_c* block, ACTOR* actorx, GAME* game) {
             xlu_gfx=NULL;
             opa_gfx=pc_dev_ridge_model(ridge,block->bz);
         }
+        Gfx* outer_coast=pc_dev_outer_coast_model(block->bx,block->bz);
+        if(outer_coast) {opa_gfx=outer_coast;xlu_gfx=NULL;}
+        opa_gfx=pc_dev_outer_ground_model(block->bx,block->bz,opa_gfx);
 #endif
 
         Matrix_translate(block->wpos.x, block->wpos.y, block->wpos.z, MTX_LOAD);

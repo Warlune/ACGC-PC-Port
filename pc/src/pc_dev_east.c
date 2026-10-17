@@ -102,6 +102,11 @@ void pc_dev_coast_field(void) {
 extern int pc_save_loaded;
 static int dev_player;
 static void choose_spawn(void) {
+    if(g_pc_dev_east_spawn>=5) {
+        Common_Set(door_data.exit_position.x,g_pc_dev_east_spawn==5?660:BLOCK_X_NUM*640-660);
+        Common_Set(door_data.exit_position.z,4020);
+        return;
+    }
     if(g_pc_dev_east_spawn>=3) {
         /* Start on the center-town side, with the corner in view. */
         Common_Set(door_data.exit_position.x,g_pc_dev_east_spawn==3?5220:8220);
@@ -169,7 +174,7 @@ void pc_dev_east_start(GAME_PLAY* play) {
     printf("[DevWorld] Three adjacent towns ready in outdoor scene %d; generated beaches/railways retained\n",Save_Get(scene_no));
 }
 void pc_dev_coast_tick(GAME_PLAY* play) {
-    if(!g_pc_dev_coast_test)return;
+    if(!g_pc_dev_coast_test || g_pc_dev_east_spawn>=5)return;
     static int frames,stage,waypoint,push_frames;
     PLAYER_ACTOR* p=get_player_actor_withoutCheck(play);
     if(!p)return;

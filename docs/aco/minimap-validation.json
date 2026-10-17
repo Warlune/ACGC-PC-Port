@@ -1,5 +1,5 @@
 {
-  "feature": "Native terrain minimap",
+  "feature": "Readable native terrain minimap and exterior coast",
   "normal_build": "passed",
   "expanded_build": "passed",
   "layout_tests": [
@@ -10,9 +10,11 @@
     "normal: passed",
     "21-column world: passed"
   ],
-  "visual_check": "21-column terrain atlas: rivers, coast, railway row, native cliff tops, internal ridges, continuous player marker",
+  "visual_check": "Isolated 21-column game: softened terrain, bright landmark glyphs across all three towns, cropped northern river source, continuous player marker; outer-west ground fills left edge at camera distance 150%, 2560x1440",
   "foreground_actor_meshes": false,
   "default_opacity": 30,
-  "rendering": "At most two acres per frame on invalidation; cached afterward",
-  "runtime": "Y:/ACO/native-terrain-minimap-preview/AnimalCrossing-Terrain-Dev.exe"
+  "rendering": "Two terrain acres per frame during invalidation; one cached smoothing pass; symbol cache refreshed only when anchor data or output dimensions change",
+  "runtime": "Y:/ACO/native-outer-ground-preview/AnimalCrossing-Ground-Dev.exe",
+  "outer_ground": "Native-density 160-unit ground pieces; two acres of visual overscan behind each exterior wall; no collision or playable bounds change",
+  "generator_tests": "60 seeds: native border combinations and interior crossings preserved"
 }

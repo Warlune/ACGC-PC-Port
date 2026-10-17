@@ -1,4 +1,6 @@
 #include "pc_minimap.h"
+#include "pc_minimap_style.h"
+#include "pc_minimap_symbols.h"
 #include "m_field_make.h"
 #include <math.h>
 #include <stdio.h>
@@ -13,12 +15,12 @@ int main(void) {
     for (int i=0;i<5;i++) for (int size=0;size<3;size++) {
         PCMinimapLayout m,nw,se;
         int w=outputs[i][0],h=outputs[i][1];
-        require(pc_minimap_layout(&m,w,h,size,BLOCK_X_NUM/2.0f,PC_MINIMAP_ROWS/2.0f),"valid town position");
+        require(pc_minimap_layout(&m,w,h,size,BLOCK_X_NUM/2.0f,(PC_MINIMAP_ROWS+PC_MAP_NORTH_CROP)/2.0f),"valid town position");
         require(m.left>=0&&m.left+m.width<320&&m.top+m.height<240,"map within screen");
-        require(close_to(m.width*w/320/BLOCK_X_NUM,m.height*h/240/PC_MINIMAP_ROWS),"acre squares retain physical aspect");
+        require(close_to(m.width*w/320/BLOCK_X_NUM,m.height*h/240/(PC_MINIMAP_ROWS-PC_MAP_NORTH_CROP)),"acre squares retain physical aspect");
         require(close_to((320-m.left-m.width)*w/320,6.0f*h/240),"constant right-edge margin");
         require(close_to(m.marker_x,m.left+m.width/2)&&close_to(m.marker_y,m.top+m.height/2),"town center maps to center");
-        pc_minimap_layout(&nw,w,h,size,0,0);
+        pc_minimap_layout(&nw,w,h,size,0,PC_MAP_NORTH_CROP);
         pc_minimap_layout(&se,w,h,size,BLOCK_X_NUM-0.001f,PC_MINIMAP_ROWS-0.001f);
         require(close_to(nw.marker_x,m.left)&&close_to(nw.marker_y,m.top),"northwest town boundary");
         require(se.marker_x>m.left+m.width*0.99f&&se.marker_y>m.top+m.height*0.99f&&
@@ -30,7 +32,7 @@ int main(void) {
     require(!pc_minimap_layout(&m,640,480,0,-1,1),"reject non-town position");
     require(!pc_minimap_layout(&m,0,480,0,1,1),"reject unavailable output");
     require(!pc_minimap_layout(&m,640,480,0,NAN,1),"reject non-finite position");
-    require(pc_minimap_layout(&m,640,480,99,1,1)&&close_to(m.height,fminf(60.0f,110.0f*PC_MINIMAP_ROWS/BLOCK_X_NUM)),"invalid size falls back to small");
+    require(pc_minimap_layout(&m,640,480,99,1,1)&&close_to(m.height,fminf(60.0f,110.0f*(PC_MINIMAP_ROWS-PC_MAP_NORTH_CROP)/BLOCK_X_NUM)),"invalid size falls back to small");
     if(BLOCK_X_NUM>7) {
         PCMinimapLayout west,center,east;
         require(pc_minimap_layout(&west,1920,1080,0,3.5f,4),"west region visible");
@@ -43,6 +45,14 @@ int main(void) {
     PCMinimapLayout small,large;
     pc_minimap_layout(&small,1920,1080,0,3,4);pc_minimap_layout(&large,1920,1080,2,3,4);
     require(large.width>small.width && large.height>small.height,"large world sizes remain distinct");
+    require(pc_minimap_symbol_type(SHOP3)==PC_MAP_SHOP,"shop upgrades share symbol");
+    require(pc_minimap_symbol_type(NPC_HOUSE000)==PC_MAP_VILLAGER,"villager house symbol");
+    require(pc_minimap_symbol_type(DUMMY_NPC_HOUSE_000)==PC_MAP_VILLAGER,"generated house symbol");
+    require(pc_minimap_symbol_type(POST_OFFICE)==PC_MAP_POST,"post office symbol");
+    require(pc_minimap_symbol_type(MUSEUM)==PC_MAP_MUSEUM,"museum symbol");
+    require(pc_minimap_symbol_type(TRAIN_STATION)==PC_MAP_STATION,"station symbol");
+    require(pc_minimap_symbol_type(0)==-1,"empty ground has no symbol");
+    require(!pc_minimap_layout(&m,640,480,0,3,0.5f),"off-map northern river source cropped");
     puts("PASS: terrain minimap layout, world borders, three region markers, aspect ratios and distinct sizes");
     return 0;
 }

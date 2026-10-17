@@ -1,5 +1,6 @@
 /* Actual terrain atlas: orthographic native meshes, separate from map art. */
 #include "pc_minimap.h"
+#include "pc_minimap_style.h"
 #include "pc_platform.h"
 #include "pc_settings.h"
 #include "pc_pause_menu.h"
@@ -17,14 +18,14 @@
 int pc_minimap_layout(PCMinimapLayout* out, int output_w, int output_h,
                       int size, float acre_x, float acre_z) {
     if (!out || output_w<=0 || output_h<=0 || !isfinite(acre_x) || !isfinite(acre_z) ||
-        acre_x<0.0f || acre_x>=BLOCK_X_NUM || acre_z<0.0f || acre_z>=PC_MINIMAP_ROWS) return 0;
+        acre_x<0.0f || acre_x>=BLOCK_X_NUM || acre_z<PC_MAP_NORTH_CROP || acre_z>=PC_MINIMAP_ROWS) return 0;
     if (size<0 || size>2) size=0;
     static const float heights[]={60.0f,78.0f,96.0f};
     /* Stretch coordinates anchor to the real right edge. Counter-scale X
      * so acre squares retain their shape on widescreen outputs. */
     float sx=(4.0f/3.0f)*output_h/output_w;
     out->height=heights[size];
-    out->width=out->height*((float)BLOCK_X_NUM/PC_MINIMAP_ROWS)*sx;
+    out->width=out->height*((float)BLOCK_X_NUM/(PC_MINIMAP_ROWS-PC_MAP_NORTH_CROP))*sx;
     static const float max_widths[]={110,145,180};
     float limit=fminf(max_widths[size]*sx,320-12*sx);
     if(out->width>limit) {
@@ -34,14 +35,16 @@ int pc_minimap_layout(PCMinimapLayout* out, int output_w, int output_h,
     out->left=320.0f-6.0f*sx-out->width;
     out->top=8.0f;
     out->marker_x=out->left+acre_x*out->width/BLOCK_X_NUM;
-    out->marker_y=out->top+acre_z*out->height/PC_MINIMAP_ROWS;
+    out->marker_y=out->top+(acre_z-PC_MAP_NORTH_CROP)*out->height/(PC_MINIMAP_ROWS-PC_MAP_NORTH_CROP);
     return 1;
 }
 
 #ifndef PC_MINIMAP_LAYOUT_TEST
 #include "pc_dev_east.h"
+#include "pc_dev_coast_walls.h"
 #include "sys_matrix.h"
 #include "libultra/gu.h"
+#include "pc_minimap_symbols.h"
 
 static Gfx map_scroll[]={gsSPEndDisplayList()};
 static Gfx map_beach_color[]={gsDPSetEnvColor(255,255,255,255),gsSPEndDisplayList()};
@@ -62,6 +65,28 @@ void pc_minimap_draw(GAME_PLAY* play) {
             player->actor_class.world.position.x/mFI_BK_WORLDSIZE_X_F,
             player->actor_class.world.position.z/mFI_BK_WORLDSIZE_Z_F)) return;
     pc_minimap_set_overlay(&map);
+    static const void* symbol_field;
+    static Uint32 symbol_time;
+    Uint32 now=SDL_GetTicks();
+    if(symbol_field!=g_fdinfo || now-symbol_time>=500) {
+        PCMapSymbol symbols[PC_MAP_MAX_SYMBOLS];int count=0;
+        for(int z=0;z<PC_MINIMAP_ROWS;z++)for(int x=0;x<BLOCK_X_NUM;x++) {
+            mActor_name_t* items=g_fdinfo->block_info[z*BLOCK_X_NUM+x].fg_info.items_p;
+            if(!items)continue;
+            for(int unit=0;unit<UT_X_NUM*UT_Z_NUM && count<PC_MAP_MAX_SYMBOLS;unit++) {
+                int kind=pc_minimap_symbol_type(items[unit]);
+                if(kind<0)continue;
+                float px=x+(unit%UT_X_NUM+0.5f)/UT_X_NUM;
+                float pz=z+(unit/UT_X_NUM+0.5f)/UT_Z_NUM;
+                /* BOAT and PORT_SIGN can represent the same dock. */
+                int duplicate=0;
+                for(int j=0;j<count;j++)if(symbols[j].kind==kind &&
+                    fabsf(symbols[j].x-px)<0.15f && fabsf(symbols[j].z-pz)<0.15f)duplicate=1;
+                if(!duplicate)symbols[count++]=(PCMapSymbol){px,pz,kind};
+            }
+        }
+        pc_minimap_set_symbols(symbols,count);symbol_field=g_fdinfo;symbol_time=now;
+    }
     static const void* field;
     static int next_tile;
     static unsigned cached_signature;
@@ -113,6 +138,9 @@ void pc_minimap_draw(GAME_PLAY* play) {
             gSPDisplayList(gfx++,grd_s_f_1_model);
             opaque=pc_dev_ridge_model(ridge,z);translucent=NULL;
         }
+        Gfx* outer_coast=pc_dev_outer_coast_model(x,z);
+        if(outer_coast){opaque=outer_coast;translucent=NULL;}
+        opaque=pc_dev_outer_ground_model(x,z,opaque);
 #endif
         if(opaque)gSPDisplayList(gfx++,opaque);
         if(translucent)gSPDisplayList(gfx++,translucent);

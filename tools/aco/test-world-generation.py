@@ -25,10 +25,15 @@ if __name__=='__main__':
         after=bytes(body)
         assert len(routes)==2
         assert connect(body,layout,templates,here.parents[1])==routes and bytes(body)==after
+        for x,combination in ((0,203),(20,206)):
+            for z in (6,7):
+                pos=layout['combi_table']+(z*21+x)*2
+                assert struct.unpack_from('>H',body,pos)[0]==combination<<2
         for z in range(10):
             for x in range(21):
                 pos=layout['combi_table']+(z*21+x)*2
-                if x not in (6,7,13,14) or z not in (1,2,3,4,5,6,7):
+                outer_extension=x in (0,20) and z in (6,7)
+                if not outer_extension and (x not in (6,7,13,14) or z not in (1,2,3,4,5,6,7)):
                     assert body[pos:pos+2]==before[pos:pos+2]
         for route in routes:
             for x in route['border_columns']:

@@ -317,6 +317,8 @@ int main(int argc, char* argv[]) {
         else if (strcmp(argv[i], "--dev-east") == 0) { g_pc_dev_east_spawn=2; }
         else if (strcmp(argv[i], "--dev-sw") == 0) { g_pc_dev_east_spawn=3; }
         else if (strcmp(argv[i], "--dev-se") == 0) { g_pc_dev_east_spawn=4; }
+        else if (strcmp(argv[i], "--dev-outer-west") == 0) { g_pc_dev_east_spawn=5; }
+        else if (strcmp(argv[i], "--dev-outer-east") == 0) { g_pc_dev_east_spawn=6; }
         else if (strcmp(argv[i], "--dev-coast-test") == 0) { g_pc_dev_coast_test=1; }
 #endif
         else if (strcmp(argv[i], "--framelimit") == 0) {

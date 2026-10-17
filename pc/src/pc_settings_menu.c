@@ -76,7 +76,7 @@ static const Item tab_audio_items[] = {
 static const Item tab_hud_items[] = {
     { "Minimap", ITEM_MINIMAP, 0 },
     { "Map size", ITEM_MINIMAP_SIZE, 0 },
-    { "Map opacity", ITEM_MINIMAP_OPACITY, 0 },
+    { "Terrain opacity", ITEM_MINIMAP_OPACITY, 0 },
 };
 
 static const Item tab_image_items[] = {

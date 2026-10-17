@@ -19,6 +19,10 @@ def coastal_connections(save,layout,templates,source_root):
     width=layout['width'];fw=layout['fg_width'];result=[]
     def combi(x,z,c):
         struct.pack_into('>H',save,layout['combi_table']+(z*width+x)*2,c<<2)
+    # Only the far outside borders continue to the end of the ocean. The
+    # shared-town coastal crossings retain their existing open shoulders.
+    for x,bg in ((0,'BG_TYPE_GRD_S_E2_1'),(width-1,'BG_TYPE_GRD_S_E3_1')):
+        for z in (6,7):combi(x,z,find(bg))
     for seam in range(7,width,7):
         for x in (seam-1,seam):
             # These acres host native-scale modular cliff sections. The PC

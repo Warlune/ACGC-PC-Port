@@ -120,3 +120,79 @@ void* pc_dev_ridge_model(int side,int z) {
     }
     return ridge_mesh[z==5][side<0].commands;
 }
+
+/* Original-scale outer walls continue through the beach and ocean rows.
+ * Add an 80-unit rock foundation down to the sea floor; the native cliff
+ * section itself is unchanged. Matching native collision comes from the
+ * generator's straight border combination, not a resampled coastal cap. */
+extern Gfx grd_s_e2_1_model[],grd_s_e3_1_model[];
+static Vtx coast_foundation[2][4];
+static Gfx coast_walls[2][12];
+void* pc_dev_outer_coast_model(int bx,int bz) {
+    if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz<6 || bz>7 ||
+       (bx!=0 && bx!=BLOCK_X_NUM-1))return NULL;
+    static int initialized;
+    if(!initialized) {
+        for(int side=0;side<2;side++) {
+            Vtx* v=coast_foundation[side];
+            for(int i=0;i<4;i++) {
+                memset(v+i,0,sizeof(*v));
+                v[i].v.ob[0]=side?10240:0;
+                v[i].v.ob[1]=(i<2?-40:40)*16;
+                v[i].v.ob[2]=(i==1||i==2)?10240:0;
+                v[i].v.tc[0]=(i==1||i==2)?16384:0;
+                v[i].v.tc[1]=i<2?3072:2048;
+                v[i].n.n[0]=side?81:-81;v[i].n.n[1]=88;v[i].n.a=232;
+            }
+            Gfx* g=coast_walls[side];
+            gSPDisplayList(g++,side?grd_s_e2_1_model:grd_s_e3_1_model);
+            gSPDisplayList(g++,ridge_rock_material);gSPVertex(g++,v,4,0);
+            if(side){gSPNTrianglesInit_5b(g++,2,0,2,1,0,3,2,0,0,0);}
+            else {gSPNTrianglesInit_5b(g++,2,0,1,2,0,2,3,0,0,0);}
+            gSPEndDisplayList(g++);
+        }
+        initialized=1;
+    }
+    return coast_walls[bx==0];
+}
+
+/* Continue the inaccessible plateau behind the outer cliffs. Each 160-unit
+ * piece keeps the native grass UV density; two extra acres cover the widened
+ * camera without changing the field size, cliff shape or collision. */
+void* pc_dev_outer_ground_model(int bx,int bz,void* original) {
+    static Vtx vertices[2][44];
+    static Gfx ground[2][24],wrapped[8][2][5];
+    static int ready;
+    if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz<1 || bz>7 ||
+       (bx!=0 && bx!=BLOCK_X_NUM-1))return original;
+    if(!ready) {
+        for(int side=0;side<2;side++) {
+            Gfx* g=ground[side];
+            for(int piece=0;piece<11;piece++) {
+                Vtx* v=vertices[side]+piece*4;
+                int start=(side?160:-1280)+piece*160;
+                for(int i=0;i<4;i++) {
+                    memset(v+i,0,sizeof(*v));
+                    v[i].v.ob[0]=(start+((i==1||i==2)?160:0))*16;
+                    v[i].v.ob[1]=280*16;
+                    v[i].v.ob[2]=(i>=2?640:0)*16;
+                    v[i].v.tc[0]=(i==1||i==2)?4096:0;
+                    v[i].v.tc[1]=i>=2?16384:0;
+                    v[i].n.n[1]=120;v[i].n.a=232;
+                }
+                gSPVertex(g++,v,4,0);
+                gSPNTrianglesInit_5b(g++,2,0,2,1,0,3,2,0,0,0);
+            }
+            gSPEndDisplayList(g++);
+        }
+        ready=1;
+    }
+    int side=bx!=0;
+    Gfx* g=wrapped[bz][side];
+    if(original)gSPDisplayList(g++,original);
+    gSPDisplayList(g++,ridge_rock_material);
+    gSPDisplayList(g++,ridge_grass_material);
+    gSPDisplayList(g++,ground[side]);
+    gSPEndDisplayList(g++);
+    return wrapped[bz][side];
+}
