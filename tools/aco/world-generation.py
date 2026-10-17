@@ -112,8 +112,8 @@ def enclosed_ocean(save,layout,entries):
                 if x<pad or x>pad+20:put(x,z,border)
         for x in range(width):
             if x<pad or x>pad+20:put(x,6,border)
-        put(pad,6,find('BG_TYPE_GRD_S_E2_M_1'))
-        put(pad+20,6,find('BG_TYPE_GRD_S_E3_M_1'))
+        put(pad,6,border)
+        put(pad+20,6,border)
     if pad: ocean_destinations(save,layout,entries)
     save[0x1c:0x20]=tag
 

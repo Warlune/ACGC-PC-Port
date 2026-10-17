@@ -10,18 +10,22 @@
     "normal: passed",
     "OCE3 local terrain/landmark crop: passed"
   ],
-  "visual_check": "Exported native 31x16 atlas: four extra islands with distinct outlines, two attached wall landings, east ferry island retained, no dark coastal-endcap gaps",
+  "visual_check": "Full native terrain export with rounded mountain caps replacing the mainland corner water patches; four exploration islands and two wall landings retained",
   "foreground_actor_meshes": false,
   "default_opacity": 30,
   "rendering": "Two terrain acres per frame during invalidation; one cached smoothing pass; symbol cache refreshed only when anchor data or output dimensions change",
-  "runtime": "Y:/ACO/native-ocean-islands-preview/AnimalCrossing-Islands-Dev.exe",
+  "runtime": "Y:/ACO/native-solid-corners-preview/AnimalCrossing-Corners-Dev.exe",
   "outer_ground": "Native-density 160-unit ground pieces; two acres of visual overscan behind each exterior wall; no collision or playable bounds change",
   "generator_tests": "60 native seeds: stable varied placement, four exploration islands, two mountain-wall landings, protected ferry route, connected water, unique saved island and idempotence",
-  "ocean_audit": "passed: 10 exploration acres, two wall landings, dry collision, ferry clearance, safe pointers",
+  "ocean_audit": "Passed: solid corner joins, safe planting/deposit pointers, four exploration islands, two wall landings and unique ferry island",
   "ferry_validation": "Route coordinates updated; complete interactive journey pending",
   "player_view_acres": [
     9,
     7.25
   ],
-  "full_world_map": "Development export only"
+  "full_world_map": "Development export only",
+  "corner_collision_tests": {
+    "west": "passed: blocked push and successful retreat",
+    "east": "passed: blocked push and successful retreat"
+  }
 }

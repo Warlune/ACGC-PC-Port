@@ -68,6 +68,9 @@ if __name__=='__main__':
                         if item==0x584f:boats.append((x,z+1,unit))
                         if item==0x5852:signs.append((x,z+1))
             if pad:
+                for corner_x in (pad,pad+20):
+                    c=struct.unpack_from('>H',body,layout['combi_table']+(6*width+corner_x)*2)[0]>>2
+                    assert entries[c][0]=='BG_TYPE_GRD_S_E1_1','Solid mountain base required at outer corner'
                 generator=runpy.run_path(str(here/'world-generation.py'))['ocean_destinations']
                 report=generator(body,layout,entries);ocean_seeds.add(report['seed'])
                 assert bytes(body)==after and generator(body,layout,entries)==report

@@ -87,6 +87,19 @@ void pc_dev_coast_field(void) {
             bg->keep_h[uz][ux]=28;
         }
     }
+    for(int side=0;side<2;side++) {
+        int x=ACO_TOWN_X0+(side?20:0);
+        mFM_bg_info_c* bg=&g_fdinfo->block_info[6*BLOCK_X_NUM+x].bg_info;
+        for(int uz=0;uz<16;uz++)for(int ux=0;ux<16;ux++) {
+            /* Outer foot: a four-cell radius around (160,480), mirrored on
+             * the west. Solid flat cells conservatively enclose the rock face. */
+            float px=(side?ux+.5f:15.5f-ux),pz=uz+.5f;
+            int sea=px<4 && pz>12 && (px-4)*(px-4)+(pz-12)*(pz-12)>16;
+            int h=sea?0:28;
+            bg->collision[uz][ux]=(mCoBG_Collision_u){{0,h,h,h,h,h,sea?mCoBG_ATTRIBUTE_SEA:mCoBG_ATTRIBUTE_GRASS0}};
+            bg->keep_h[uz][ux]=h;
+        }
+    }
     for(int x=1;x<BLOCK_X_NUM-1;x++) {
         mFM_bg_info_c* bg=&g_fdinfo->block_info[15*BLOCK_X_NUM+x].bg_info;
         for(int uz=0;uz<UT_Z_NUM;uz++)for(int ux=0;ux<UT_X_NUM;ux++) {
@@ -196,8 +209,31 @@ void pc_dev_east_start(GAME_PLAY* play) {
 void pc_dev_coast_tick(GAME_PLAY* play) {
     if(!g_pc_dev_coast_test)return;
     if(g_pc_dev_east_spawn>=5) {
-        static int audited;
-        if(audited || !get_player_actor_withoutCheck(play) || !g_fdinfo)return;
+        static int audited,corner_frames;
+        static float start_x;
+        PLAYER_ACTOR* corner_player=get_player_actor_withoutCheck(play);
+        if(!corner_player || !g_fdinfo)return;
+        if(audited) {
+            if(corner_frames>=360)return;
+            int direction=g_pc_dev_east_spawn==5?-1:1;
+            xyz_t position=corner_player->actor_class.world.position;
+            corner_frames++;
+            if(position.y>80 || Save_Get(scene_no)!=SCENE_FG ||
+               (position.x-start_x)*direction>40) {
+                printf("[CornerTest] FAIL: crossed mountain at (%.1f,%.1f,%.1f)\n",position.x,position.y,position.z);
+                fflush(stdout);exit(1);
+            }
+            g_pc_dev_test_stick=corner_frames<=180?direction*80:-direction*80;
+            if(corner_frames==360) {
+                g_pc_dev_test_stick=0;
+                if((start_x-position.x)*direction<80) {
+                    printf("[CornerTest] FAIL: could not retreat from mountain\n");fflush(stdout);exit(1);
+                }
+                printf("[CornerTest] PASS: %s solid mountain blocked input and allowed retreat; scene=%d\n",
+                    direction<0?"west":"east",Save_Get(scene_no));fflush(stdout);
+            }
+            return;
+        }
         int ports=0,islands=0,exploration=0,wall_landings=0,bad=0;
         if(g_fdinfo->block_x_max!=BLOCK_X_NUM || g_fdinfo->block_z_max!=18)bad|=1;
         for(int z=0;z<18;z++)for(int x=0;x<BLOCK_X_NUM;x++) {
@@ -226,12 +262,21 @@ void pc_dev_coast_tick(GAME_PLAY* play) {
             }
             if(z==15 && x>0 && x<BLOCK_X_NUM-1 && block->bg_info.keep_h[8][8]!=28)bad|=128;
         }
+        for(int side=0;side<2;side++) {
+            mFM_bg_info_c* bg=&g_fdinfo->block_info[6*BLOCK_X_NUM+ACO_TOWN_X0+(side?20:0)].bg_info;
+            for(int uz=0;uz<12;uz++)for(int ux=0;ux<16;ux++)
+                if(bg->keep_h[uz][ux]!=28 || bg->collision[uz][ux].data.unit_attribute==mCoBG_ATTRIBUTE_SEA)bad|=4096;
+            for(int uz=0;uz<12;uz++)
+                if(bg->keep_h[uz][side?0:15]!=28)bad|=8192;
+            for(int uz=0;uz<16;uz++)
+                if(bg->keep_h[uz][side?15:0]!=28)bad|=8192;
+        }
         if(ports!=1 || islands!=2)bad|=256;
         if(exploration!=10 || wall_landings!=2)bad|=2048;
         printf("[OceanAudit] Exploration acres=%d wall landings=%d; native dry collision and ferry clearance checked\n",exploration,wall_landings);
-        printf("[OceanAudit] %s: 31x18 field; one east port; island=(23,12)-(24,12); safe foreground/deposit pointers; southern collision\n",bad?"FAIL":"PASS");
+        printf("[OceanAudit] %s: 31x18 field; one east port; island=(23,12)-(24,12); safe foreground/deposit pointers; solid coastal corner collision; southern collision\n",bad?"FAIL":"PASS");
         if(bad)printf("[OceanAudit] flags=%x ports=%d island_acres=%d field=%dx%d\n",bad,ports,islands,g_fdinfo->block_x_max,g_fdinfo->block_z_max);
-        fflush(stdout);audited=1;
+        fflush(stdout);audited=1;start_x=corner_player->actor_class.world.position.x;
         if(bad)exit(1);
         return;
     }

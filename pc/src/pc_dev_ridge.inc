@@ -20,7 +20,7 @@ static Gfx ridge_grass_material[]={
     gsSPEndDisplayList(),
 };
 typedef struct {Vtx vertices[1024];Gfx commands[768];int nv;} RidgeMesh;
-static RidgeMesh ridge_mesh[2][2];
+static RidgeMesh ridge_mesh[3][2];
 static int ridge_ready;
 static const float ridge_depth[]={0,10,30,40,60,160};
 static const float ridge_y[]={40,160,160,280,280,280};
@@ -28,11 +28,12 @@ static const float ridge_t[]={2048,512,0,-1536,-2048,-4608};
 typedef struct {float x,z,nx,nz,s;} RidgePath;
 static RidgePath ridge_path(float s,int cap) {
     RidgePath p;
-    if(!cap || s<=400) {p=(RidgePath){0,s,1,0,s};}
-    else if(s<400+251.327412f) {
-        float a=(s-400)/160;
-        p=(RidgePath){160-160*cosf(a),400+160*sinf(a),cosf(a),-sinf(a),s};
-    } else {p=(RidgePath){160+s-651.327412f,560,0,-1,s};}
+    float turn=cap==2?480:400;
+    if(!cap || s<=turn) {p=(RidgePath){0,s,1,0,s};}
+    else if(s<turn+251.327412f) {
+        float a=(s-turn)/160;
+        p=(RidgePath){160-160*cosf(a),turn+160*sinf(a),cosf(a),-sinf(a),s};
+    } else {p=(RidgePath){160+s-turn-251.327412f,turn+160,0,-1,s};}
     return p;
 }
 static void ridge_vertex(Vtx* v,RidgePath p,int level,int mirror,int grass) {
@@ -85,12 +86,17 @@ static void ridge_build(int cap,int mirror) {
     RidgeMesh* m=&ridge_mesh[cap][mirror];Gfx* g=m->commands;
     RidgePath path[32];int n=0;
     if(cap) {
-        for(int i=0;i<=5;i++)path[n++]=ridge_path(i*80,1);
-        for(int i=1;i<=8;i++)path[n++]=ridge_path(400+i*251.327412f/8,1);
-        for(int i=1;i<=6;i++)path[n++]=ridge_path(651.327412f+i*80,1);
+        float turn=cap==2?480:400;
+        for(int i=0;i<=(cap==2?6:5);i++)path[n++]=ridge_path(i*80,cap);
+        for(int i=1;i<=8;i++)path[n++]=ridge_path(turn+i*251.327412f/8,cap);
+        for(int i=1;i<=6;i++)path[n++]=ridge_path(turn+251.327412f+i*80,cap);
     } else for(int i=0;i<=8;i++)path[n++]=ridge_path(i*80,0);
     gSPDisplayList(g++,ridge_rock_material);
     int grass_start=0;
+    if(cap==2)for(int i=0;i<n-1;i++) {
+        int first=m->nv;ridge_quad(m,path[i],path[i+1],0,mirror);
+        for(int j=0;j<4;j++)m->vertices[first+j].v.ob[1]=(j<2?-40:40)*16;
+    }
     for(int level=0;level<5;level++) {
         if(level==4) {
             ridge_emit(m,&g,0,mirror);grass_start=m->nv;
@@ -101,7 +107,7 @@ static void ridge_build(int cap,int mirror) {
     ridge_emit(m,&g,grass_start,mirror);
     /* Plateau behind the rim. Texture coordinates use world-space density. */
     Vtx* v=m->vertices+m->nv;m->nv+=4;
-    float xs[]={160,640,640,160},zs[]={0,0,cap?400:640,cap?400:640};
+    float xs[]={160,640,640,160},zs[]={0,0,cap==2?480:cap?400:640,cap==2?480:cap?400:640};
     for(int i=0;i<4;i++) {
         memset(v+i,0,sizeof(*v));v[i].v.ob[0]=(short)((mirror?640-xs[i]:xs[i])*16);
         v[i].v.ob[1]=4480;v[i].v.ob[2]=(short)(zs[i]*16);
@@ -115,7 +121,7 @@ static void ridge_build(int cap,int mirror) {
 }
 void* pc_dev_ridge_model(int side,int z) {
     if(!ridge_ready) {
-        for(int cap=0;cap<2;cap++)for(int mirror=0;mirror<2;mirror++)ridge_build(cap,mirror);
+        for(int cap=0;cap<3;cap++)for(int mirror=0;mirror<2;mirror++)ridge_build(cap,mirror);
         ridge_ready=1;
     }
     return ridge_mesh[z==5][side<0].commands;
@@ -131,14 +137,10 @@ static Gfx coast_walls[2][12];
 void* pc_dev_outer_coast_model(int bx,int bz) {
     if(g_pc_dev_east && Save_Get(scene_no)==SCENE_FG && bz==6 &&
        (bx==ACO_TOWN_X0 || bx==ACO_TOWN_X0+20)) {
-        /* Native endcaps leave their outside quarter unpainted. Continue the
-         * ocean below them now that water extends past the mainland bounds. */
-        extern Gfx grd_s_o_1_model[];
-        extern Gfx grd_s_e2_m_1_model[],grd_s_e3_m_1_model[];
-        static Gfx corner[2][3];int side=bx!=ACO_TOWN_X0;Gfx* g=corner[side];
-        gSPDisplayList(g++,grd_s_o_1_model);
-        gSPDisplayList(g++,side?grd_s_e3_m_1_model:grd_s_e2_m_1_model);
-        gSPEndDisplayList(g++);return corner[side];
+        /* The outer mountain turns through a native-scale rounded cap. Its
+         * front reaches the same Z=640 foot as the horizontal ocean rim. */
+        pc_dev_ridge_model(1,1); /* Initialize the shared modular pieces. */
+        return ridge_mesh[2][bx==ACO_TOWN_X0].commands;
     }
     int north=bz==6 && (bx<ACO_TOWN_X0 || bx>ACO_TOWN_X0+20);
     if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz<6 || bz>15 ||
@@ -216,16 +218,9 @@ void* pc_dev_outer_coast_model(int bx,int bz) {
     return coast_walls[bx==0];
 }
 
-/* Water remains in the translucent pass, where native marine scroll segments
- * are installed. It cannot be called from an opaque cliff wrapper. */
+/* All coast overrides are solid mountain geometry. */
 void* pc_dev_outer_coast_water_model(int bx,int bz) {
-    if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz!=6 ||
-       (bx!=ACO_TOWN_X0 && bx!=ACO_TOWN_X0+20))return NULL;
-    extern Gfx grd_s_o_1_modelT[],grd_s_e2_m_1_modelT[],grd_s_e3_m_1_modelT[];
-    static Gfx corner[2][3];int side=bx!=ACO_TOWN_X0;Gfx* g=corner[side];
-    gSPDisplayList(g++,grd_s_o_1_modelT);
-    gSPDisplayList(g++,side?grd_s_e3_m_1_modelT:grd_s_e2_m_1_modelT);
-    gSPEndDisplayList(g++);return corner[side];
+    (void)bx;(void)bz;return NULL;
 }
 
 /* Continue the inaccessible plateau behind the outer cliffs. Each 160-unit
