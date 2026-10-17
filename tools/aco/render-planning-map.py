@@ -1,12 +1,36 @@
-"""Label a native minimap export and enlarge the saved center-town boat island."""
+"""Label a native minimap export, including the actual saved boat island."""
 import argparse,json,struct
 from pathlib import Path
 from PIL import Image,ImageDraw,ImageFont
 
+def render_continuous(terrain,symbols,layout,output):
+    """Every outdoor acre at the same scale, including the surrounding sea."""
+    width,rows=layout['width'],layout['visible_rows']
+    if terrain.size!=(width*64,rows*64):raise ValueError('Atlas and world layout differ')
+    scale=112;pad=32;top=70
+    canvas=Image.new('RGB',(width*scale+pad*2,rows*scale+top+pad),'#102c3c')
+    canvas.paste(terrain.resize((width*scale,rows*scale),Image.Resampling.BICUBIC),(pad,top))
+    draw=ImageDraw.Draw(canvas)
+    font=lambda size:ImageFont.truetype('C:/Windows/Fonts/segoeui.ttf',size)
+    for region,name in enumerate(('WEST','CENTER','EAST')):
+        draw.text((pad+(layout.get('town_start',0)+region*7)*scale,20),name,font=font(26),fill='#e2eddf')
+    glyphs=['H','o','S','P','T','M','!','A','W','B','D','^','L']
+    colors=['#cfaa52','#929989','#659b62','#688ea9','#ae665b','#81799c','#587f9e',
+            '#b781a4','#5caaa0','#548da6','#8a986b','#ab9462','#c59b61']
+    for s in sorted(symbols,key=lambda s:s['kind']!=1):
+        x,y=pad+s['x']*scale,top+s['z']*scale;k=s['kind'];r=8 if k==1 else 11
+        draw.ellipse((x-r,y-r,x+r,y+r),fill=colors[k],outline='#10252b',width=2)
+        text=glyphs[k];box=draw.textbbox((0,0),text,font=font(15))
+        draw.text((x-(box[2]-box[0])/2,y-11),text,font=font(15),fill='white')
+    draw.text((pad+(width/2-1)*scale,top+10*scale),'OCEAN',font=font(29),fill='#b8d4e8',stroke_width=1,stroke_fill='#234d8c')
+    draw.text((pad+(layout.get('town_start',0)+17.9)*scale,top+13.2*scale),'ISLAND',font=font(22),fill='#dfebd7',stroke_width=1,stroke_fill='#17437a')
+    canvas.save(output)
+
 def render(atlas,save,layout,output):
     terrain=Image.open(atlas).convert('RGB').transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-    if terrain.size!=(1344,576):raise ValueError('Expected expanded-world planning export')
     symbols=json.loads(Path(str(atlas)+'.json').read_text())
+    if layout.get('height',10)>=18:return render_continuous(terrain,symbols,layout,output)
+    if terrain.size!=(1344,576):raise ValueError('Expected expanded-world planning export')
     font=lambda size:ImageFont.truetype('C:/Windows/Fonts/segoeui.ttf',size)
     canvas=Image.new('RGB',(2464,1370),'#13252b');draw=ImageDraw.Draw(canvas)
     left,top,scale=56,118,112

@@ -15,15 +15,18 @@ extern "C" {
 #endif
 
 #if defined(TARGET_PC) && defined(ACO_DEV_EAST)
-#define BLOCK_X_NUM 21 /* Dev: three complete 7-column towns, including mountain borders. */
+#define BLOCK_X_NUM 31 /* Three towns centered above a wider ocean basin. */
+#define ACO_TOWN_X0 5
+#define BLOCK_Z_NUM 18 /* Six town rows, a deep sea, then reserved indoor templates. */
 #else
 #define BLOCK_X_NUM 7
-#endif
+#define ACO_TOWN_X0 0
 #define BLOCK_Z_NUM 10
+#endif
 #define BLOCK_TOTAL_NUM (BLOCK_X_NUM * BLOCK_Z_NUM)
 
 #define FG_BLOCK_X_NUM (BLOCK_X_NUM - 2) /* 5 */
-#define FG_BLOCK_Z_NUM (BLOCK_Z_NUM - 4) /* 6 */
+#define FG_BLOCK_Z_NUM 6 /* Ocean expansion does not add resident/planting acres. */
 #define FG_BLOCK_TOTAL_NUM (FG_BLOCK_X_NUM * FG_BLOCK_Z_NUM)
 
 #define UT_BASE_NUM 16

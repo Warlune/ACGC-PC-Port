@@ -15,7 +15,7 @@ extern "C" {
 #endif
 
 #if defined(TARGET_PC) && defined(ACO_DEV_EAST)
-#define mCD_LAND_SAVE_SIZE 0x86000 /* Dev-only triple-town Save sectors. */
+#define mCD_LAND_SAVE_SIZE 0x96000 /* Dev-only wide-ocean Save sectors. */
 #else
 #define mCD_LAND_SAVE_SIZE 0x72000
 #endif

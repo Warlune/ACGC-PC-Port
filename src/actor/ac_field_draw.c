@@ -471,8 +471,9 @@ static void aFD_DrawBlock(aFD_block_c* block, ACTOR* actorx, GAME* game) {
             opa_gfx=pc_dev_ridge_model(ridge,block->bz);
         }
         Gfx* outer_coast=pc_dev_outer_coast_model(block->bx,block->bz);
-        if(outer_coast) {opa_gfx=outer_coast;xlu_gfx=NULL;}
+        if(outer_coast) {opa_gfx=outer_coast;xlu_gfx=pc_dev_outer_coast_water_model(block->bx,block->bz);}
         opa_gfx=pc_dev_outer_ground_model(block->bx,block->bz,opa_gfx);
+        if(pc_dev_world_void_block(block->bx,block->bz)){opa_gfx=NULL;xlu_gfx=NULL;}
 #endif
 
         Matrix_translate(block->wpos.x, block->wpos.y, block->wpos.z, MTX_LOAD);

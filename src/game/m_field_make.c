@@ -169,7 +169,7 @@ static void mFM_SetFgUtPtoSaveData(mFM_block_info_c* block_info, u8 bx_max, u8 b
                     block_info->fg_info.items_p = Save_Get(island.fgblock[0][0]).items[0];
                 } else if (bx == island_block_x[1] && bz == mISL_BLOCK_Z) {
                     block_info->fg_info.items_p = Save_Get(island.fgblock[0][1]).items[0];
-                } else if (bz >= (bz_max - 3)) {
+                } else if (bz > FG_BLOCK_Z_NUM) {
                     block_info->fg_info.items_p = l_fg_outer_fill;
                 } else {
                     block_info->fg_info.items_p = Save_Get(fg[bz - 1][bx - 1]).items[0];
@@ -690,7 +690,7 @@ static void mFM_SetFgDepositP(mFM_block_info_c* block_info, mActor_name_t field_
                         break;
                     }
 
-                    if (bx > 0 && bx < bx_max - 1 && bz > 0 && bz < bz_max - 3) {
+                    if (bx > 0 && bx < bx_max - 1 && bz > 0 && bz <= FG_BLOCK_Z_NUM) {
                         block_info->fg_info.deposit_p = Save_GetPointer(deposit[fg_blocks++][0]);
                     }
 
@@ -701,7 +701,7 @@ static void mFM_SetFgDepositP(mFM_block_info_c* block_info, mActor_name_t field_
             block_info = block_info_p + island_x_blocks[0] + bx_max * mISL_BLOCK_Z;
 
 /* @BUG - they used the island Z acre location define here on accident lol */
-#ifndef BUGFIXES
+#if !defined(BUGFIXES) && !defined(ACO_DEV_EAST)
             for (bz = 0; bz < mISL_BLOCK_Z; bz++) {
 #else
             for (bz = 0; bz < mISL_FG_BLOCK_X_NUM; bz++) {
@@ -1510,7 +1510,7 @@ extern void mFM_InitFgCombiSaveData(GAME* game) {
     fg_block_p = fg_block;
     for (bz = 0; bz < mISL_BLOCK_Z; bz++) {
         for (bx = 0; bx < BLOCK_X_NUM; bx++, combi_table++) {
-            if (bz > 0 && bz < (BLOCK_Z_NUM - 3) && bx > 0 && bx < (BLOCK_X_NUM - 1)) {
+            if (bz > 0 && bz <= FG_BLOCK_Z_NUM && bx > 0 && bx < (BLOCK_X_NUM - 1)) {
                 if (total_fg_block >= FG_BLOCK_TOTAL_NUM) {
                     break;
                 }
@@ -1663,7 +1663,7 @@ extern mActor_name_t mFM_GetReseveName(int bx, int bz) {
     int set_idx = 0;
     int i;
 
-    if (bx > 0 && bx < (BLOCK_X_NUM - 1) && bz > 0 && bz < (BLOCK_Z_NUM - 3)) {
+    if (bx > 0 && bx < (BLOCK_X_NUM - 1) && bz > 0 && bz <= FG_BLOCK_Z_NUM) {
         block_kind = g_block_kind_p[(bz * BLOCK_X_NUM) + bx];
         items = Save_Get(fg[bz - 1][bx - 1]).items[0];
 

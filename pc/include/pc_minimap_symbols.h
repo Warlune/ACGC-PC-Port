@@ -11,6 +11,8 @@ typedef struct {float x,z;int kind;} PCMapSymbol;
 void pc_minimap_set_symbols(const PCMapSymbol* symbols,int count);
 static inline int pc_minimap_symbol_type(unsigned item) {
     if(ITEM_IS_PLAYER_HOUSE(item))return PC_MAP_HOME;
+    if(item==COTTAGE_MY || item==DUMMY_COTTAGE_MY)return PC_MAP_HOME;
+    if(item==COTTAGE_NPC || item==DUMMY_COTTAGE_NPC)return PC_MAP_VILLAGER;
     if(ITEM_IS_NPC_HOUSE(item)||ITEM_IS_DUMMY_NPC_HOUSE(item))return PC_MAP_VILLAGER;
     if(item>=SHOP0 && item<=SHOP3)return PC_MAP_SHOP;
     switch(item) {

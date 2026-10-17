@@ -466,6 +466,16 @@ static int pc_save_read_gci(const char* path) {
         OSReport("[DevEast] Refusing non-converted save size %ld\n",file_size);
         fclose(fp);return FALSE;
     }
+    /* The sector-aligned file size is shared by older dev layouts. Check a
+     * format tag before interpreting shifted structures or writing any save. */
+    {
+        char format[4];
+        fseek(fp,GCI_HEADER_SIZE+GCI_SAVE_MAIN_OFFSET+0x1C,SEEK_SET);
+        if(fread(format,1,4,fp)!=4 || memcmp(format,"OCE2",4)!=0) {
+            OSReport("[DevWorld] Ocean-world save migration required; old save left untouched.\n");
+            fclose(fp);return FALSE;
+        }
+    }
 #endif
     fseek(fp, 0, SEEK_SET);
     OSReport("[PC] GCI: opened '%s', size = %ld (0x%lX), expected %ld (0x%lX)\n",

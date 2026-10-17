@@ -129,8 +129,20 @@ extern Gfx grd_s_e2_1_model[],grd_s_e3_1_model[];
 static Vtx coast_foundation[2][4];
 static Gfx coast_walls[2][12];
 void* pc_dev_outer_coast_model(int bx,int bz) {
-    if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz<6 || bz>7 ||
-       (bx!=0 && bx!=BLOCK_X_NUM-1))return NULL;
+    if(g_pc_dev_east && Save_Get(scene_no)==SCENE_FG && bz==6 &&
+       (bx==ACO_TOWN_X0 || bx==ACO_TOWN_X0+20)) {
+        /* Native endcaps leave their outside quarter unpainted. Continue the
+         * ocean below them now that water extends past the mainland bounds. */
+        extern Gfx grd_s_o_1_model[];
+        extern Gfx grd_s_e2_m_1_model[],grd_s_e3_m_1_model[];
+        static Gfx corner[2][3];int side=bx!=ACO_TOWN_X0;Gfx* g=corner[side];
+        gSPDisplayList(g++,grd_s_o_1_model);
+        gSPDisplayList(g++,side?grd_s_e3_m_1_model:grd_s_e2_m_1_model);
+        gSPEndDisplayList(g++);return corner[side];
+    }
+    int north=bz==6 && (bx<ACO_TOWN_X0 || bx>ACO_TOWN_X0+20);
+    if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz<6 || bz>15 ||
+       (bx!=0 && bx!=BLOCK_X_NUM-1 && bz!=15 && !north))return NULL;
     static int initialized;
     if(!initialized) {
         for(int side=0;side<2;side++) {
@@ -153,7 +165,67 @@ void* pc_dev_outer_coast_model(int bx,int bz) {
         }
         initialized=1;
     }
+    if(north) {
+        static Gfx rim[12];static Vtx plateau[4];
+        static Mtx translate,rotate;static int ready;
+        if(!ready) {
+            guTranslate(&translate,0,0,10240);guRotate(&rotate,90,0,1,0);
+            Gfx* g=rim;
+            gSPMatrix(g++,&translate,G_MTX_PUSH|G_MTX_MUL|G_MTX_MODELVIEW);
+            gSPMatrix(g++,&rotate,G_MTX_NOPUSH|G_MTX_MUL|G_MTX_MODELVIEW);
+            gSPDisplayList(g++,coast_walls[0]);
+            gSPDisplayList(g++,ridge_rock_material);gSPDisplayList(g++,ridge_grass_material);
+            for(int i=0;i<4;i++) {
+                Vtx* v=plateau+i;memset(v,0,sizeof(*v));
+                v->v.ob[0]=(i==1||i==2)?10240:2560;v->v.ob[1]=4480;v->v.ob[2]=i>=2?10240:0;
+                v->v.tc[0]=(i==1||i==2)?12288:0;v->v.tc[1]=i>=2?16384:0;
+                v->n.n[1]=120;v->n.a=232;
+            }
+            gSPVertex(g++,plateau,4,0);gSPNTrianglesInit_5b(g++,2,0,2,1,0,3,2,0,0,0);
+            gSPPopMatrix(g++,G_MTX_MODELVIEW);gSPEndDisplayList(g++);ready=1;
+        }
+        return rim;
+    }
+    if(bz==15 && bx>0 && bx<BLOCK_X_NUM-1) {
+        static Gfx bottom[16];static Vtx plateau[12];
+        static Mtx translate,rotate;static int bottom_ready;
+        if(!bottom_ready) {
+            guTranslate(&translate,10240,0,0);
+            guRotate(&rotate,-90,0,1,0);
+            Gfx* g=bottom;
+            gSPMatrix(g++,&translate,G_MTX_PUSH|G_MTX_MUL|G_MTX_MODELVIEW);
+            gSPMatrix(g++,&rotate,G_MTX_NOPUSH|G_MTX_MUL|G_MTX_MODELVIEW);
+            gSPDisplayList(g++,coast_walls[0]);
+            gSPDisplayList(g++,ridge_rock_material);gSPDisplayList(g++,ridge_grass_material);
+            /* Original-scale grass pieces continue behind the southern rim. */
+            for(int piece=0;piece<3;piece++) {
+                Vtx* v=plateau+piece*4;
+                for(int i=0;i<4;i++) {
+                    memset(v+i,0,sizeof(*v));
+                    v[i].v.ob[0]=(160+piece*560+((i==1||i==2)?560:0))*16;
+                    v[i].v.ob[1]=280*16;v[i].v.ob[2]=(i>=2?640:0)*16;
+                    v[i].v.tc[0]=(i==1||i==2)?14336:0;v[i].v.tc[1]=i>=2?16384:0;
+                    v[i].n.n[1]=120;v[i].n.a=232;
+                }
+                gSPVertex(g++,v,4,0);gSPNTrianglesInit_5b(g++,2,0,2,1,0,3,2,0,0,0);
+            }
+            gSPPopMatrix(g++,G_MTX_MODELVIEW);gSPEndDisplayList(g++);bottom_ready=1;
+        }
+        return bottom;
+    }
     return coast_walls[bx==0];
+}
+
+/* Water remains in the translucent pass, where native marine scroll segments
+ * are installed. It cannot be called from an opaque cliff wrapper. */
+void* pc_dev_outer_coast_water_model(int bx,int bz) {
+    if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz!=6 ||
+       (bx!=ACO_TOWN_X0 && bx!=ACO_TOWN_X0+20))return NULL;
+    extern Gfx grd_s_o_1_modelT[],grd_s_e2_m_1_modelT[],grd_s_e3_m_1_modelT[];
+    static Gfx corner[2][3];int side=bx!=ACO_TOWN_X0;Gfx* g=corner[side];
+    gSPDisplayList(g++,grd_s_o_1_modelT);
+    gSPDisplayList(g++,side?grd_s_e3_m_1_modelT:grd_s_e2_m_1_modelT);
+    gSPEndDisplayList(g++);return corner[side];
 }
 
 /* Continue the inaccessible plateau behind the outer cliffs. Each 160-unit
@@ -161,10 +233,12 @@ void* pc_dev_outer_coast_model(int bx,int bz) {
  * camera without changing the field size, cliff shape or collision. */
 void* pc_dev_outer_ground_model(int bx,int bz,void* original) {
     static Vtx vertices[2][44];
-    static Gfx ground[2][24],wrapped[8][2][5];
+    static Gfx ground[2][24],wrapped[16][2][5];
     static int ready;
-    if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz<1 || bz>7 ||
-       (bx!=0 && bx!=BLOCK_X_NUM-1))return original;
+    int left=bz<=5?ACO_TOWN_X0:0,right=bz<=5?ACO_TOWN_X0+20:BLOCK_X_NUM-1;
+    if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz<1 || bz>15 ||
+       (bz==6 && (bx<ACO_TOWN_X0 || bx>ACO_TOWN_X0+20)) ||
+       (bx!=left && bx!=right))return original;
     if(!ready) {
         for(int side=0;side<2;side++) {
             Gfx* g=ground[side];
@@ -187,7 +261,7 @@ void* pc_dev_outer_ground_model(int bx,int bz,void* original) {
         }
         ready=1;
     }
-    int side=bx!=0;
+    int side=bx!=left;
     Gfx* g=wrapped[bz][side];
     if(original)gSPDisplayList(g++,original);
     gSPDisplayList(g++,ridge_rock_material);

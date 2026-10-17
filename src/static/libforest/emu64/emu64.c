@@ -16,6 +16,7 @@
 #ifdef TARGET_PC
 #include "pc_platform.h"
 #include "pc_minimap.h"
+#include "pc_minimap_style.h"
 #endif
 
 // this pragma may be unnecessary

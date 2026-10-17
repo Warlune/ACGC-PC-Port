@@ -15,6 +15,7 @@
 #include "m_rcp.h"
 #include "sys_matrix.h"
 #include "graph.h"
+#include "libultra/gu.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -64,9 +65,13 @@ int g_pc_dev_coast_test;
 int g_pc_dev_test_stick;
 int g_pc_dev_test_stick_y;
 #include "pc_dev_ridge.inc"
+int pc_dev_world_void_block(int bx,int bz) {
+    return g_pc_dev_east && Save_Get(scene_no)==SCENE_FG && bz<6 &&
+        (bx<ACO_TOWN_X0 || bx>ACO_TOWN_X0+20);
+}
 int pc_dev_ridge_side(int bx,int bz) {
     if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz<1 || bz>5)return 0;
-    for(int seam=7;seam<BLOCK_X_NUM;seam+=7) {
+    for(int seam=ACO_TOWN_X0+7;seam<ACO_TOWN_X0+21;seam+=7) {
         if(bx==seam-1)return 1;
         if(bx==seam)return -1;
     }
@@ -74,6 +79,20 @@ int pc_dev_ridge_side(int bx,int bz) {
 }
 void pc_dev_coast_field(void) {
     if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || !g_fdinfo)return;
+    for(int x=0;x<BLOCK_X_NUM;x++)if(x<ACO_TOWN_X0 || x>ACO_TOWN_X0+20) {
+        mFM_bg_info_c* bg=&g_fdinfo->block_info[6*BLOCK_X_NUM+x].bg_info;
+        for(int uz=0;uz<UT_Z_NUM;uz++)for(int ux=0;ux<UT_X_NUM;ux++) {
+            bg->collision[uz][ux]=(mCoBG_Collision_u){{0,28,28,28,28,28,mCoBG_ATTRIBUTE_GRASS0}};
+            bg->keep_h[uz][ux]=28;
+        }
+    }
+    for(int x=1;x<BLOCK_X_NUM-1;x++) {
+        mFM_bg_info_c* bg=&g_fdinfo->block_info[15*BLOCK_X_NUM+x].bg_info;
+        for(int uz=0;uz<UT_Z_NUM;uz++)for(int ux=0;ux<UT_X_NUM;ux++) {
+            bg->collision[uz][ux]=(mCoBG_Collision_u){{0,28,28,28,28,28,mCoBG_ATTRIBUTE_GRASS0}};
+            bg->keep_h[uz][ux]=28;
+        }
+    }
     for(int z=1;z<=5;z++) for(int x=1;x<BLOCK_X_NUM-1;x++) {
         int side=pc_dev_ridge_side(x,z);
         if(!side)continue;
@@ -103,17 +122,17 @@ extern int pc_save_loaded;
 static int dev_player;
 static void choose_spawn(void) {
     if(g_pc_dev_east_spawn>=5) {
-        Common_Set(door_data.exit_position.x,g_pc_dev_east_spawn==5?660:BLOCK_X_NUM*640-660);
+        Common_Set(door_data.exit_position.x,ACO_TOWN_X0*640+(g_pc_dev_east_spawn==5?660:21*640-660));
         Common_Set(door_data.exit_position.z,4020);
         return;
     }
     if(g_pc_dev_east_spawn>=3) {
         /* Start on the center-town side, with the corner in view. */
-        Common_Set(door_data.exit_position.x,g_pc_dev_east_spawn==3?5220:8220);
+        Common_Set(door_data.exit_position.x,ACO_TOWN_X0*640+(g_pc_dev_east_spawn==3?5220:8220));
         Common_Set(door_data.exit_position.z,4020);
         return;
     }
-    int offset=g_pc_dev_east_spawn==1?0:g_pc_dev_east_spawn==2?14:7;
+    int offset=ACO_TOWN_X0+(g_pc_dev_east_spawn==1?0:g_pc_dev_east_spawn==2?14:7);
     int best=1000,best_x=-1,best_z=-1;
     for(int z=5;z>=2;z--) for(int x=1;x<=5;x++) {
         int bx=offset+x;
@@ -133,7 +152,7 @@ static void choose_spawn(void) {
 }
 void pc_dev_east_prepare(void) {
     if(!g_pc_dev_east)return;
-    if(!pc_save_loaded || sizeof(Save)!=0x30000) {
+    if(!pc_save_loaded || sizeof(Save)!=0x38000) {
         fprintf(stderr,"[DevWorld] Converted triple-town development save required.\n");exit(1);
     }
     dev_player=-1;
@@ -155,7 +174,7 @@ void pc_dev_east_prepare(void) {
     Common_Set(door_data.exit_position.y,0);
     Common_Set(door_data.exit_orientation,2);Common_Set(door_data.extra_data,0);
     choose_spawn();
-    printf("[DevWorld] Existing resident %d; region=%s spawn=(%d,%d); 21 columns, coastal connections\n",
+    printf("[DevWorld] Existing resident %d; region=%s spawn=(%d,%d); 31 columns, wider enclosed ocean\n",
         dev_player,g_pc_dev_east_spawn==1?"WEST":g_pc_dev_east_spawn==2?"EAST":"CENTER",
         Common_Get(door_data.exit_position.x),Common_Get(door_data.exit_position.z));
 }
@@ -174,14 +193,43 @@ void pc_dev_east_start(GAME_PLAY* play) {
     printf("[DevWorld] Three adjacent towns ready in outdoor scene %d; generated beaches/railways retained\n",Save_Get(scene_no));
 }
 void pc_dev_coast_tick(GAME_PLAY* play) {
-    if(!g_pc_dev_coast_test || g_pc_dev_east_spawn>=5)return;
+    if(!g_pc_dev_coast_test)return;
+    if(g_pc_dev_east_spawn>=5) {
+        static int audited;
+        if(audited || !get_player_actor_withoutCheck(play) || !g_fdinfo)return;
+        int ports=0,islands=0,bad=0;
+        if(g_fdinfo->block_x_max!=BLOCK_X_NUM || g_fdinfo->block_z_max!=18)bad|=1;
+        for(int z=0;z<18;z++)for(int x=0;x<BLOCK_X_NUM;x++) {
+            mFM_block_info_c* block=&g_fdinfo->block_info[z*BLOCK_X_NUM+x];
+            int type=block->bg_info.block_type;
+            if(type==mFM_BLOCK_TYPE_PORT){ports++;if(x!=ACO_TOWN_X0+19 || z!=6)bad|=2;}
+            if(type==mFM_BLOCK_TYPE_ISLAND_LEFT || type==mFM_BLOCK_TYPE_ISLAND_RIGHT) {
+                islands++;if(z!=12 || x<mISL_BLOCK_X0 || x>mISL_BLOCK_X1)bad|=4;
+                if(z==12 && x>=mISL_BLOCK_X0 && x<=mISL_BLOCK_X1) {
+                    if(block->fg_info.items_p!=Save_Get(island.fgblock[0][x-mISL_BLOCK_X0]).items[0])bad|=8;
+                    if(block->fg_info.deposit_p!=Save_Get(island.deposit[x-mISL_BLOCK_X0]))bad|=16;
+                }
+            } else if(z>=7) {
+                if(block->fg_info.deposit_p!=NULL)bad|=32;
+                for(int unit=0;unit<256;unit++)if(block->fg_info.items_p &&
+                    block->fg_info.items_p[unit]!=EMPTY_NO && block->fg_info.items_p[unit]!=RSV_NO)bad|=64;
+            }
+            if(z==15 && x>0 && x<BLOCK_X_NUM-1 && block->bg_info.keep_h[8][8]!=28)bad|=128;
+        }
+        if(ports!=1 || islands!=2)bad|=256;
+        printf("[OceanAudit] %s: 31x18 field; one east port; island=(23,12)-(24,12); safe foreground/deposit pointers; southern collision\n",bad?"FAIL":"PASS");
+        if(bad)printf("[OceanAudit] flags=%x ports=%d island_acres=%d field=%dx%d\n",bad,ports,islands,g_fdinfo->block_x_max,g_fdinfo->block_z_max);
+        fflush(stdout);audited=1;
+        if(bad)exit(1);
+        return;
+    }
     static int frames,stage,waypoint,push_frames;
     PLAYER_ACTOR* p=get_player_actor_withoutCheck(play);
     if(!p)return;
     xyz_t pos=p->actor_class.world.position;
     int direction=g_pc_dev_east_spawn==3?-1:1;
-    float start=g_pc_dev_east_spawn==3?5220:8220;
-    float left=g_pc_dev_east_spawn==3?3840:8320;
+    float start=ACO_TOWN_X0*640+(g_pc_dev_east_spawn==3?5220:8220);
+    float left=ACO_TOWN_X0*640+(g_pc_dev_east_spawn==3?3840:8320);
     /* Both corners: approach, push into the cliff, retreat, then continue
      * along the foot. All motion uses ordinary pad input and collision. */
     static const float path[][3]={

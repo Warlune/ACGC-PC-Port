@@ -200,7 +200,11 @@ static void aEvMgr_actor_init_field_info(aEvMgr_field_info_c* field_info) {
     free_num = 0;
     mNpc_MakeReservedListAfterFieldct(field_info->reserve_buf, reserved_max, &free_num, field_info->block_max.x, field_info->block_max.z);
     field_info->reserve_num = free_num;
+#ifdef ACO_DEV_EAST
+    field_info->block_max.z = MIN(field_info->block_max.z-2,FG_BLOCK_Z_NUM+2);
+#else
     field_info->block_max.z -= 2;
+#endif
 }
 
 static void aEvMgr_move(ACTOR* actorx, GAME* game) {

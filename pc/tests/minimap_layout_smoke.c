@@ -52,6 +52,12 @@ int main(void) {
     require(pc_minimap_symbol_type(MUSEUM)==PC_MAP_MUSEUM,"museum symbol");
     require(pc_minimap_symbol_type(TRAIN_STATION)==PC_MAP_STATION,"station symbol");
     require(pc_minimap_symbol_type(0)==-1,"empty ground has no symbol");
+#ifdef ACO_DEV_EAST
+    require(PC_MINIMAP_CAPTURE+BLOCK_X_NUM*PC_MINIMAP_ROWS<PC_MINIMAP_CAPTURE_END,"expanded atlas tile tags cannot collide with capture-end tag");
+    require(pc_minimap_layout(&m,1920,1080,0,ACO_TOWN_X0+18.5f,12.5f),"offshore east island visible at true coordinates");
+    require(pc_minimap_layout(&m,1920,1080,0,10.5f,14.5f),"deep southern sea visible");
+    require(pc_minimap_symbol_type(COTTAGE_MY)==PC_MAP_HOME,"island cottage symbol");
+#endif
     require(!pc_minimap_layout(&m,640,480,0,3,0.5f),"off-map northern river source cropped");
     puts("PASS: terrain minimap layout, world borders, three region markers, aspect ratios and distinct sizes");
     return 0;

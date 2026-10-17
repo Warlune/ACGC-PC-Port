@@ -58,6 +58,16 @@ ACTOR_PROFILE Boat_Profile = {
     NULL,
 };
 
+#ifdef ACO_DEV_EAST
+/* East-town departure and the single offshore island. Keep the authored
+ * approach/berthing curves, extending only the open-water leg. */
+static xyz_t aBT_chk_point[] = {
+    {3420+(ACO_TOWN_X0+14)*640,0,4260},{3380+(ACO_TOWN_X0+14)*640,0,4300},
+    {3340+(ACO_TOWN_X0+14)*640,0,4380},{3340+(ACO_TOWN_X0+14)*640,0,4620},
+    {3740+(ACO_TOWN_X0+14)*640,0,4980+4*640},{3740+(ACO_TOWN_X0+14)*640,0,5220+4*640},
+    {3700+(ACO_TOWN_X0+14)*640,0,5300+4*640},{3660+(ACO_TOWN_X0+14)*640,0,5340+4*640},
+};
+#else
 static xyz_t aBT_chk_point[] = {
     // Position                    Z-X       X     Z
     { 3420.0f, 0.0f, 4260.0f }, // F-5 unit  5.5 - 10.5
@@ -69,6 +79,7 @@ static xyz_t aBT_chk_point[] = {
     { 3700.0f, 0.0f, 5300.0f }, // H-5 unit 12.5 -  4.5
     { 3660.0f, 0.0f, 5340.0f }, // H-5 unit 11.5 -  5.5
 };
+#endif
 
 static int aBT_last_point_idx[aBT_DIRECTION_NUM] = { 7, 0 };
 

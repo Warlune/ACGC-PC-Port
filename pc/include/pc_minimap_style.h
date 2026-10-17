@@ -4,8 +4,8 @@
 #define PC_MAP_NORTH_CROP 0.75f
 #ifdef ACO_DEV_EAST
 #include <stdlib.h>
-/* Planning exports include the normally hidden boat-island row. */
+/* Full outdoor world, excluding the final two indoor-template storage rows. */
 #undef PC_MINIMAP_ROWS
-#define PC_MINIMAP_ROWS (getenv("ACO_MAP_EXPORT")?9:8)
+#define PC_MINIMAP_ROWS 16
 #endif
 #endif

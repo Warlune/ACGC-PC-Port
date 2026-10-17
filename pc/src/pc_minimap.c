@@ -71,6 +71,11 @@ void pc_minimap_draw(GAME_PLAY* play) {
     if(symbol_field!=g_fdinfo || now-symbol_time>=500) {
         PCMapSymbol symbols[PC_MAP_MAX_SYMBOLS];int count=0;
         for(int z=0;z<PC_MINIMAP_ROWS;z++)for(int x=0;x<BLOCK_X_NUM;x++) {
+            /* A loaded boat/sign actor can temporarily replace its FG anchor.
+             * The authored port terrain remains a stable dock location. */
+            if(g_fdinfo->block_info[z*BLOCK_X_NUM+x].bg_info.block_type==mFM_BLOCK_TYPE_PORT &&
+               count<PC_MAP_MAX_SYMBOLS)
+                symbols[count++]=(PCMapSymbol){x+8.5f/16,z+7.5f/16,PC_MAP_PORT};
             mActor_name_t* items=g_fdinfo->block_info[z*BLOCK_X_NUM+x].fg_info.items_p;
             if(!items)continue;
             for(int unit=0;unit<UT_X_NUM*UT_Z_NUM && count<PC_MAP_MAX_SYMBOLS;unit++) {
@@ -80,8 +85,9 @@ void pc_minimap_draw(GAME_PLAY* play) {
                 float pz=z+(unit/UT_X_NUM+0.5f)/UT_Z_NUM;
                 /* BOAT and PORT_SIGN can represent the same dock. */
                 int duplicate=0;
+                float separation=kind==PC_MAP_PORT?0.30f:0.15f;
                 for(int j=0;j<count;j++)if(symbols[j].kind==kind &&
-                    fabsf(symbols[j].x-px)<0.15f && fabsf(symbols[j].z-pz)<0.15f)duplicate=1;
+                    fabsf(symbols[j].x-px)<separation && fabsf(symbols[j].z-pz)<separation)duplicate=1;
                 if(!duplicate)symbols[count++]=(PCMapSymbol){px,pz,kind};
             }
         }
@@ -139,8 +145,9 @@ void pc_minimap_draw(GAME_PLAY* play) {
             opaque=pc_dev_ridge_model(ridge,z);translucent=NULL;
         }
         Gfx* outer_coast=pc_dev_outer_coast_model(x,z);
-        if(outer_coast){opaque=outer_coast;translucent=NULL;}
+        if(outer_coast){opaque=outer_coast;translucent=pc_dev_outer_coast_water_model(x,z);}
         opaque=pc_dev_outer_ground_model(x,z,opaque);
+        if(pc_dev_world_void_block(x,z)){opaque=NULL;translucent=NULL;}
 #endif
         if(opaque)gSPDisplayList(gfx++,opaque);
         if(translucent)gSPDisplayList(gfx++,translucent);

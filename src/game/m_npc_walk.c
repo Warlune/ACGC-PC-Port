@@ -337,7 +337,7 @@ static int mNpcW_GetAloneBlock(u8* goal_block_x, u8* goal_block_z) {
   z = 1;
   selected = RANDOM(FG_BLOCK_TOTAL_NUM - animal_count);
   /* Find the random acre and set output */
-  for (bz = 1; bz < BLOCK_Z_NUM - 3; bz++) {
+  for (bz = 1; bz <= FG_BLOCK_Z_NUM; bz++) {
     for (bx = 1; bx < BLOCK_X_NUM - 1; bx++) {
       if ((((block_field[z]) >> bx) & 1) == 0) {
         if (selected <= 0) {

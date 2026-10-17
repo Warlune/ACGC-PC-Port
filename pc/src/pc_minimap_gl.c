@@ -118,7 +118,7 @@ static void create_program(void) {
         "else if(kind==12){a=max(rect(p,vec2(.38,.29),vec2(.62,.76)),rect(p,vec2(.28,.24),vec2(.72,.36)));a=max(a,max(line(p,vec2(.2,.24),vec2(.07,.18),.025),line(p,vec2(.8,.24),vec2(.93,.18),.025)));}\n"
         "return clamp(a,0,1);}\n"
         "void main(){if(textured==0){outColor=tint;return;}\n"
-        "if(textured==1){vec4 c=texture(atlas,vec2(uv.x,uv.y*(1.0-0.75/8.0)));outColor=vec4(c.rgb,c.a*tint.a);return;}\n"
+        "if(textured==1){vec4 c=texture(atlas,vec2(uv.x,uv.y*(1.0-48.0/float(textureSize(atlas,0).y))));outColor=vec4(c.rgb,c.a*tint.a);return;}\n"
         "if(textured==2){outColor=vec4(soften(uv),1);return;}\n"
         "if(textured==3){vec4 c=texture(atlas,uv);outColor=vec4(c.rgb,c.a*tint.a);return;}\n"
         "vec2 p=vec2(uv.x,1-uv.y);float d=length(p-vec2(.5));float coverage=1-smoothstep(.46,.49,d);if(coverage<=0)discard;\n"
@@ -270,7 +270,7 @@ void pc_minimap_present(void) {
     quad(x-2*sy,y-2*sy,w+4*sy,h+4*sy,0,0.03f,0.05f,0.06f,a);
     quad(x,y,w,h,1,1,1,1,a);
     /* Town boundaries aid orientation without replacing any terrain. */
-    if(BLOCK_X_NUM>7)for(int col=7;col<BLOCK_X_NUM;col+=7)
+    if(BLOCK_X_NUM>7)for(int col=ACO_TOWN_X0+7;col<ACO_TOWN_X0+21;col+=7)
         quad(x+w*col/BLOCK_X_NUM,y,sy*0.35f,h,0,1,1,1,a*0.35f);
     /* Symbols stay legible while the terrain remains faint. Fully transparent
      * or disabled maps still hide everything through the guard above. */

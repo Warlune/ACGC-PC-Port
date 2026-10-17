@@ -5,8 +5,8 @@ extern "C" {
 #endif
 #define PC_MINIMAP_ROWS 8
 #define PC_MINIMAP_CAPTURE 0xAC6000u
-#define PC_MINIMAP_CAPTURE_END 0xAC6100u
-#define PC_MINIMAP_RESET 0xAC6200u
+#define PC_MINIMAP_CAPTURE_END 0xAC7000u
+#define PC_MINIMAP_RESET 0xAC8000u
 struct game_play_s;
 typedef struct {
     float left, top, width, height, marker_x, marker_y;

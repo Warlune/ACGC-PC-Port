@@ -2601,10 +2601,10 @@ extern void mNpc_MakeReservedListAfterFieldct(Anmhome_c* reserved, int reserved_
     Anmhome_c* reserved_p = reserved;
     mActor_name_t* item;
     u8 num = 0;
-    u8 i;
-    u8 j;
-    u8 k;
-    u8 l;
+    int i;
+    int j;
+    int k;
+    int l;
 
     for (i = 0; i < reserved_num; i++) {
         reserved->block_x = -1;
