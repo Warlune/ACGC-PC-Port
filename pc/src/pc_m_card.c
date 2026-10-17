@@ -461,6 +461,12 @@ static int pc_save_read_gci(const char* path) {
 
     fseek(fp, 0, SEEK_END);
     file_size = ftell(fp);
+#ifdef ACO_DEV_EAST
+    if (file_size != GCI_HEADER_SIZE+GCI_FILE_DATA_SIZE) {
+        OSReport("[DevEast] Refusing non-converted save size %ld\n",file_size);
+        fclose(fp);return FALSE;
+    }
+#endif
     fseek(fp, 0, SEEK_SET);
     OSReport("[PC] GCI: opened '%s', size = %ld (0x%lX), expected %ld (0x%lX)\n",
              path, file_size, (unsigned long)file_size,

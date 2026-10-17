@@ -744,6 +744,9 @@ static mFM_fdinfo_c* mFM_MakeField(u16 scene, u16 bg_max, u8 bg_num) {
 
     bzero(field_info, sizeof(mFM_fdinfo_c));
     field_data = &data_fdd[scene];
+#ifdef ACO_DEV_EAST
+    if (scene==SCENE_FG) {field_data->block_x_max=BLOCK_X_NUM;field_data->block_z_max=BLOCK_Z_NUM;}
+#endif
     field_info->block_x_max = field_data->block_x_max;
     field_info->block_z_max = field_data->block_z_max;
     field_info->bg_num = bg_num;

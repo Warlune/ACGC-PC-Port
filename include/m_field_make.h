@@ -14,7 +14,11 @@
 extern "C" {
 #endif
 
+#if defined(TARGET_PC) && defined(ACO_DEV_EAST)
+#define BLOCK_X_NUM 21 /* Dev: three complete 7-column towns, including mountain borders. */
+#else
 #define BLOCK_X_NUM 7
+#endif
 #define BLOCK_Z_NUM 10
 #define BLOCK_TOTAL_NUM (BLOCK_X_NUM * BLOCK_Z_NUM)
 

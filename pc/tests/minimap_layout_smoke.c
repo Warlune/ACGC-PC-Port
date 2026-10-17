@@ -25,7 +25,7 @@ int mEv_CheckTitleDemo(void) { return title_demo; }
 PLAYER_ACTOR* get_player_actor_withoutCheck(GAME_PLAY* play) { (void)play; return &player; }
 int pc_minimap_get_tile(int bx,int bz,const u8** texture,const u16** palette) {
     static u8 pixels[512];static u16 colors[16];
-    if (bx<1||bx>5||bz<1||bz>6) abort();
+    if (bx<1||bx>FG_BLOCK_X_NUM||bz<1||bz>FG_BLOCK_Z_NUM) abort();
     tile_count++;*texture=pixels;*palette=colors;return 1;
 }
 Gfx* gfx_gSPTextureRectangle1(Gfx* gfx,int xl,int yl,int xh,int yh,int tile,int s,int t,int dx,int dy) {
@@ -46,28 +46,28 @@ int main(void) {
     for (int i=0;i<5;i++) for (int size=0;size<3;size++) {
         PCMinimapLayout m,nw,se;
         int w=outputs[i][0],h=outputs[i][1];
-        require(pc_minimap_layout(&m,w,h,size,3.5f,4.0f),"valid town position");
+        require(pc_minimap_layout(&m,w,h,size,1.0f+FG_BLOCK_X_NUM/2.0f,1.0f+FG_BLOCK_Z_NUM/2.0f),"valid town position");
         require(m.left>=0&&m.left+m.width<320&&m.top+m.height<240,"map within screen");
-        require(close_to(m.width*w/320/5,m.height*h/240/6),"acre squares retain physical aspect");
+        require(close_to(m.width*w/320/FG_BLOCK_X_NUM,m.height*h/240/FG_BLOCK_Z_NUM),"acre squares retain physical aspect");
         require(close_to((320-m.left-m.width)*w/320,6.0f*h/240),"constant right-edge margin");
         require(close_to(m.marker_x,m.left+m.width/2)&&close_to(m.marker_y,m.top+m.height/2),"town center maps to center");
         pc_minimap_layout(&nw,w,h,size,1,1);
-        pc_minimap_layout(&se,w,h,size,5.999f,6.999f);
+        pc_minimap_layout(&se,w,h,size,FG_BLOCK_X_NUM+0.999f,FG_BLOCK_Z_NUM+0.999f);
         require(close_to(nw.marker_x,m.left)&&close_to(nw.marker_y,m.top),"northwest town boundary");
         require(se.marker_x>m.left+m.width*0.99f&&se.marker_y>m.top+m.height*0.99f&&
                 se.marker_x<m.left+m.width&&se.marker_y<m.top+m.height,"southeast town boundary");
     }
     PCMinimapLayout m;
-    require(!pc_minimap_layout(&m,640,480,0,6,1),"reject east border");
-    require(!pc_minimap_layout(&m,640,480,0,1,7),"reject south border");
+    require(!pc_minimap_layout(&m,640,480,0,FG_BLOCK_X_NUM+1,1),"reject east border");
+    require(!pc_minimap_layout(&m,640,480,0,1,FG_BLOCK_Z_NUM+1),"reject south border");
     require(!pc_minimap_layout(&m,640,480,0,0,1),"reject non-town position");
     require(!pc_minimap_layout(&m,0,480,0,1,1),"reject unavailable output");
     require(!pc_minimap_layout(&m,640,480,0,NAN,1),"reject non-finite position");
-    require(pc_minimap_layout(&m,640,480,99,1,1)&&close_to(m.height,60),"invalid size falls back to small");
+    require(pc_minimap_layout(&m,640,480,99,1,1)&&close_to(m.height,fminf(60.0f,110.0f*FG_BLOCK_Z_NUM/FG_BLOCK_X_NUM)),"invalid size falls back to small");
     /* Exercise the actual HUD command producer, without a window or game assets. */
     static GAME_PLAY play;
     static GRAPH graph;
-    static Gfx commands[1024];
+    static Gfx commands[4096];
     play.game.graph=&graph;
     play.submenu.mode=mSM_MODE_IDLE;
     Save_Get(scene_no)=SCENE_FG;
@@ -80,7 +80,7 @@ int main(void) {
         g_pc_settings.minimap_opacity=opacity;
         tile_count=rectangle_count=0;
         pc_minimap_draw(&play);
-        require(tile_count==30&&rectangle_count==33,"all town acres, panel and player marker emitted");
+        require(tile_count==FG_BLOCK_TOTAL_NUM&&rectangle_count==FG_BLOCK_TOTAL_NUM+3,"all town acres, panel and player marker emitted");
         int colors=0;
         for(Gfx* g=commands;g<graph.font_thaga.thaGfx.head_p;g++) {
             if ((g->words.w0>>24)==G_SETPRIMCOLOR) {

@@ -61,6 +61,7 @@ shader_cache.bin
 
 # Persistent co-op host data and per-player credentials
 /host/data/
+/pc/build-east32/
 town.sqlite3*
 credentials.json
 *.pyc

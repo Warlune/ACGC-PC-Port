@@ -11,6 +11,10 @@ set(CMAKE_CXX_STANDARD 17)
 
 # Options
 option(PC_CONSOLE "Show console window (disables -mwindows, useful for debugging)" OFF)
+option(ACO_DEV_EAST "Experimental three-town world; isolated converted saves only" OFF)
+if(ACO_DEV_EAST)
+    add_compile_definitions(ACO_DEV_EAST)
+endif()
 
 # =============================================================================
 # 32-bit enforcement (required: JSystem casts pointers to u32)
@@ -294,6 +298,7 @@ set(PC_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_settings_menu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_menu_util.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_minimap.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_dev_east.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_text_draw.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_keybindings.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_nes_fixnes.c

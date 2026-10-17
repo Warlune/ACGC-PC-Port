@@ -1,6 +1,7 @@
 #include "m_play.h"
 #ifdef TARGET_PC
 #include "pc_minimap.h"
+#include "pc_dev_east.h"
 #endif
 
 #include "evw_anime.h"
@@ -486,6 +487,9 @@ extern void play_init(GAME* game) {
         my_malloc_current = &my_malloc_func;
     }
 
+#ifdef ACO_DEV_EAST
+    pc_dev_east_start(play);
+#endif
     mFM_FieldInit(play);
     VR_Box_ct(play);
     mMmd_MakeMuseumDisplayData();

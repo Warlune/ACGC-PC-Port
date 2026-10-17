@@ -11,6 +11,10 @@
 #include "boot.h"
 #include "sys_math.h"
 #include "m_nmibuf.h"
+#ifdef ACO_DEV_EAST
+#include "pc_dev_east.h"
+#include "m_play.h"
+#endif
 
 static u8 sound_ok;
 static u8 contpad_ok;
@@ -35,6 +39,13 @@ static void second_game_main(GAME* game) {
   }
 
   if (sound_ok == 2 && (contpad_ok || frame_count > 3)) {
+#ifdef ACO_DEV_EAST
+    if (g_pc_dev_east) {
+      pc_dev_east_prepare();
+      GAME_GOTO_NEXT(game,play,PLAY);
+      return;
+    }
+#endif
     GAME_GOTO_NEXT(game, trademark, TRADEMARK);
   }
 

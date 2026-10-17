@@ -3,6 +3,7 @@
 #include "pc_gx_internal.h"
 #include "pc_texture_pack.h"
 #include "pc_settings.h"
+#include "pc_dev_east.h"
 #include "pc_graphics.h"
 #include "pc_window_menu.h"
 #include "pc_keybindings.h"
@@ -302,7 +303,13 @@ int main(int argc, char* argv[]) {
             printf("  --uber-shader       Disable shader specialization (single uber shader)\n");
             printf("  --help, -h          Show this help message\n");
             return 0;
-        } else if (strcmp(argv[i], "--framelimit") == 0) {
+        }
+#ifdef ACO_DEV_EAST
+        else if (strcmp(argv[i], "--dev-world") == 0) { g_pc_dev_east=1; }
+        else if (strcmp(argv[i], "--dev-west") == 0) { g_pc_dev_east_spawn=1; }
+        else if (strcmp(argv[i], "--dev-east") == 0) { g_pc_dev_east_spawn=2; }
+#endif
+        else if (strcmp(argv[i], "--framelimit") == 0) {
             if (i + 1 < argc && argv[i + 1][0] != '-') {
                 int v = atoi(argv[i + 1]);
                 if (v > 0) {
@@ -376,6 +383,13 @@ int main(int argc, char* argv[]) {
         setvbuf(stderr, NULL, _IONBF, 0);
     }
 
+#ifdef ACO_DEV_EAST
+    if (!g_pc_dev_east) {
+        fprintf(stderr,"This experimental build requires --dev-world and a converted isolated save.\n");
+        return 2;
+    }
+    pc_dev_east_diagnostics();
+#endif
     /* exe image range for seg2k0 — BSS can overlap N64 segment addresses */
 #ifdef _WIN32
     {

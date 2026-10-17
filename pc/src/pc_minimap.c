@@ -17,18 +17,22 @@ extern int pc_minimap_get_tile(int bx, int bz, const u8** texture, const u16** p
 int pc_minimap_layout(PCMinimapLayout* out, int output_w, int output_h,
                       int size, float acre_x, float acre_z) {
     if (!out || output_w<=0 || output_h<=0 || !isfinite(acre_x) || !isfinite(acre_z) ||
-        acre_x<1.0f || acre_x>=6.0f || acre_z<1.0f || acre_z>=7.0f) return 0;
+        acre_x<1.0f || acre_x>=FG_BLOCK_X_NUM+1.0f || acre_z<1.0f || acre_z>=FG_BLOCK_Z_NUM+1.0f) return 0;
     if (size<0 || size>2) size=0;
     static const float heights[]={60.0f,78.0f,96.0f};
     /* Stretch coordinates anchor to the real right edge. Counter-scale X
      * so acre squares retain their shape on widescreen outputs. */
     float sx=(4.0f/3.0f)*output_h/output_w;
     out->height=heights[size];
-    out->width=out->height*(5.0f/6.0f)*sx;
+    out->width=out->height*((float)FG_BLOCK_X_NUM/FG_BLOCK_Z_NUM)*sx;
+    if(out->width>110.0f*sx) {
+        out->height*=110.0f*sx/out->width;
+        out->width=110.0f*sx;
+    }
     out->left=320.0f-6.0f*sx-out->width;
     out->top=8.0f;
-    out->marker_x=out->left+(acre_x-1.0f)*out->width/5.0f;
-    out->marker_y=out->top+(acre_z-1.0f)*out->height/6.0f;
+    out->marker_x=out->left+(acre_x-1.0f)*out->width/FG_BLOCK_X_NUM;
+    out->marker_y=out->top+(acre_z-1.0f)*out->height/FG_BLOCK_Z_NUM;
     return 1;
 }
 
@@ -69,12 +73,12 @@ void pc_minimap_draw(GAME_PLAY* play) {
     /* Texture color and alpha are modulated by the user's opacity. */
     gDPSetCombineMode(gfx++,G_CC_MODULATEIA_PRIM,G_CC_MODULATEIA_PRIM);
     gDPSetPrimColor(gfx++,0,0,255,255,255,alpha);
-    for (int z=0;z<6;z++) for (int x=0;x<5;x++) {
+    for (int z=0;z<FG_BLOCK_Z_NUM;z++) for (int x=0;x<FG_BLOCK_X_NUM;x++) {
         const u8* texture;
         const u16* palette;
         if (!pc_minimap_get_tile(x+1,z+1,&texture,&palette)) continue;
-        float x0=map.left+x*map.width/5, x1=map.left+(x+1)*map.width/5;
-        float y0=map.top+z*map.height/6, y1=map.top+(z+1)*map.height/6;
+        float x0=map.left+x*map.width/FG_BLOCK_X_NUM, x1=map.left+(x+1)*map.width/FG_BLOCK_X_NUM;
+        float y0=map.top+z*map.height/FG_BLOCK_Z_NUM, y1=map.top+(z+1)*map.height/FG_BLOCK_Z_NUM;
         gDPPipeSync(gfx++);
         gDPLoadTLUT_Dolphin(gfx++,15,16,1,palette);
         gDPLoadTextureBlock_4b_Dolphin(gfx++,texture,G_IM_FMT_CI,32,32,15,0,0,0,0);

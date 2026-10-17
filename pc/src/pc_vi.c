@@ -1,5 +1,6 @@
 /* pc_vi.c - video interface → SDL window swap + frame pacing */
 #include "pc_platform.h"
+#include "pc_dev_east.h"
 #include "pc_profiler.h"
 #include "pc_settings.h"
 
@@ -130,6 +131,10 @@ void VIWaitForRetrace(void) {
             const char* texture_mode = g_pc_settings.texture_replacements==2 ? "EVERYTHING 4X" : g_pc_settings.texture_replacements ? "PACK" : "ORIGINAL";
             if (g_pc_settings.show_fps) snprintf(title, sizeof(title), "Animal Crossing - %.1f FPS [Textures: %s]", fps, texture_mode);
             else snprintf(title, sizeof(title), "Animal Crossing [Textures: %s]", texture_mode);
+#ifdef ACO_DEV_EAST
+            snprintf(title,sizeof(title),"ACO World Dev [%s] - %.1f FPS [Textures: %s]",
+                g_pc_dev_east_spawn==1?"WEST":g_pc_dev_east_spawn==2?"EAST":"CENTER",fps,texture_mode);
+#endif
             SDL_SetWindowTitle(g_pc_window, title);
             fps_start = now;
             fps_count = 0;

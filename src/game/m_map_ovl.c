@@ -482,6 +482,15 @@ extern u8 kan_win_suuji5_tex_rgb_ia8[];
 static u8* kan_win_evw_anime_1_tex_table[FG_BLOCK_X_NUM] = {
     kan_win_suuji1_tex_rgb_ia8, kan_win_suuji2_tex_rgb_ia8, kan_win_suuji3_tex_rgb_ia8,
     kan_win_suuji4_tex_rgb_ia8, kan_win_suuji5_tex_rgb_ia8,
+#ifdef ACO_DEV_EAST
+    /* Temporary repeated labels for the widened development map. */
+    kan_win_suuji1_tex_rgb_ia8, kan_win_suuji2_tex_rgb_ia8, kan_win_suuji3_tex_rgb_ia8,
+    kan_win_suuji4_tex_rgb_ia8, kan_win_suuji5_tex_rgb_ia8,
+    kan_win_suuji1_tex_rgb_ia8, kan_win_suuji2_tex_rgb_ia8, kan_win_suuji3_tex_rgb_ia8,
+    kan_win_suuji4_tex_rgb_ia8, kan_win_suuji5_tex_rgb_ia8,
+    kan_win_suuji1_tex_rgb_ia8, kan_win_suuji2_tex_rgb_ia8, kan_win_suuji3_tex_rgb_ia8,
+    kan_win_suuji4_tex_rgb_ia8,
+#endif
 };
 
 extern u8 kan_win_a_tex_rgb_ia8[];
