@@ -28,7 +28,7 @@ if __name__=='__main__':
         for z in range(10):
             for x in range(21):
                 pos=layout['combi_table']+(z*21+x)*2
-                if x not in (6,7,13,14) or z not in (5,6,7):
+                if x not in (6,7,13,14) or z not in (1,2,3,4,5,6,7):
                     assert body[pos:pos+2]==before[pos:pos+2]
         for route in routes:
             for x in route['border_columns']:

@@ -66,6 +66,11 @@ void pc_platform_init(void) {
 
     {
         Uint32 flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
+#ifdef ACO_DEV_EAST
+        /* Automated movement tests keep rendering without stealing focus
+         * from a separate interactive development session. */
+        if(g_pc_dev_coast_test) flags=(flags&~SDL_WINDOW_SHOWN)|SDL_WINDOW_HIDDEN;
+#endif
         int win_w = g_pc_settings.window_width;
         int win_h = g_pc_settings.window_height;
         if (g_pc_settings.fullscreen == 1) {

@@ -62,6 +62,8 @@ int g_pc_dev_east;
 int g_pc_dev_east_spawn;
 int g_pc_dev_coast_test;
 int g_pc_dev_test_stick;
+int g_pc_dev_test_stick_y;
+#include "pc_dev_ridge.inc"
 int pc_dev_ridge_side(int bx,int bz) {
     if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz<1 || bz>5)return 0;
     for(int seam=7;seam<BLOCK_X_NUM;seam+=7) {
@@ -72,18 +74,26 @@ int pc_dev_ridge_side(int bx,int bz) {
 }
 void pc_dev_coast_field(void) {
     if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || !g_fdinfo)return;
-    const mCoBG_Collision_u grass={{0,4,4,4,4,4,mCoBG_ATTRIBUTE_GRASS0}};
     for(int z=1;z<=5;z++) for(int x=1;x<BLOCK_X_NUM-1;x++) {
         int side=pc_dev_ridge_side(x,z);
         if(!side)continue;
         mFM_bg_info_c* bg=&g_fdinfo->block_info[z*BLOCK_X_NUM+x].bg_info;
-        mCoBG_Collision_u source[UT_Z_NUM][UT_X_NUM];
-        memcpy(source,bg->collision,sizeof(source));
         for(int uz=0;uz<UT_Z_NUM;uz++) for(int ux=0;ux<UT_X_NUM;ux++) {
-            int source_z=z==5?(uz*2+1)/3:uz;
-            mCoBG_Collision_u c=source[source_z][(side>0?0:12)+ux/4];
-            if(z==5 && (mCoBG_CheckWaterAttribute(c.data.unit_attribute) ||
-                mCoBG_CheckWaveAttr(c.data.unit_attribute))) c=grass;
+            int local_x=side>0?ux:15-ux;
+            mCoBG_Collision_u c={{0,28,28,28,28,28,mCoBG_ATTRIBUTE_GRASS0}};
+            if(z==5) {
+                int cut=uz-local_x;
+                if(uz>=14 || cut>12) {
+                    c=(mCoBG_Collision_u){{0,4,4,4,4,4,mCoBG_ATTRIBUTE_GRASS0}};
+                } else if(cut==12) {
+                    /* Native diagonal cliff: two flat triangles separated
+                     * by a wall, rather than an accidentally climbable ramp.
+                     * This chamfer follows the rounded foot to within 24u. */
+                    c.data.slate_flag=1;
+                    if(side>0) {c.data.bot_left=4;c.data.unit_attribute=mCoBG_ATTRIBUTE_56;}
+                    else {c.data.bot_right=4;c.data.unit_attribute=mCoBG_ATTRIBUTE_57;}
+                }
+            }
             bg->collision[uz][ux]=c;
             bg->keep_h[uz][ux]=c.data.center;
         }
@@ -93,8 +103,8 @@ extern int pc_save_loaded;
 static int dev_player;
 static void choose_spawn(void) {
     if(g_pc_dev_east_spawn>=3) {
-        Common_Set(door_data.exit_position.x,g_pc_dev_coast_test?
-            (g_pc_dev_east_spawn==3?5220:8220):(g_pc_dev_east_spawn==3?4480:8960));
+        /* Start on the center-town side, with the corner in view. */
+        Common_Set(door_data.exit_position.x,g_pc_dev_east_spawn==3?5220:8220);
         Common_Set(door_data.exit_position.z,4020);
         return;
     }
@@ -140,7 +150,7 @@ void pc_dev_east_prepare(void) {
     Common_Set(door_data.exit_position.y,0);
     Common_Set(door_data.exit_orientation,2);Common_Set(door_data.extra_data,0);
     choose_spawn();
-    printf("[DevWorld] Existing resident %d; region=%s spawn=(%d,%d); 21 columns, no passage\n",
+    printf("[DevWorld] Existing resident %d; region=%s spawn=(%d,%d); 21 columns, coastal connections\n",
         dev_player,g_pc_dev_east_spawn==1?"WEST":g_pc_dev_east_spawn==2?"EAST":"CENTER",
         Common_Get(door_data.exit_position.x),Common_Get(door_data.exit_position.z));
 }
@@ -160,28 +170,57 @@ void pc_dev_east_start(GAME_PLAY* play) {
 }
 void pc_dev_coast_tick(GAME_PLAY* play) {
     if(!g_pc_dev_coast_test)return;
-    static int frames,stage;
+    static int frames,stage,waypoint,push_frames;
     PLAYER_ACTOR* p=get_player_actor_withoutCheck(play);
     if(!p)return;
     xyz_t pos=p->actor_class.world.position;
     int direction=g_pc_dev_east_spawn==3?-1:1;
     float start=g_pc_dev_east_spawn==3?5220:8220;
+    float left=g_pc_dev_east_spawn==3?3840:8320;
+    /* Both corners: approach, push into the cliff, retreat, then continue
+     * along the foot. All motion uses ordinary pad input and collision. */
+    static const float path[][3]={
+        {640,3810,0},{160,3810,0},{20,3720,0},
+        {80,3720,180},{20,3840,0},{160,3810,0},
+        {1120,3810,0},{1260,3720,0},{1200,3720,180},
+        {1260,3840,0},{640,4020,0}
+    };
     frames++;
-    if(frames==120) {stage=1;g_pc_dev_test_stick=direction*80;}
-    if(stage==1 && (pos.x-start)*direction>=1500) {
+    if(frames==120){stage=1;g_pc_dev_test_stick=direction*80;}
+    if(stage==1 && (pos.x-start)*direction>=1500){
         printf("[CoastTest] Reached side town x=%.1f z=%.1f scene=%d\n",pos.x,pos.z,Save_Get(scene_no));
         stage=2;g_pc_dev_test_stick=-direction*80;
     }
-    if(stage==2 && (pos.x-start)*direction<=0) {
-        printf("[CoastTest] PASS: %s route both ways using controller/collision, scene=%d position=(%.1f,%.1f,%.1f)\n",
-            direction<0?"SW":"SE",Save_Get(scene_no),pos.x,pos.y,pos.z);
-        stage=3;g_pc_dev_test_stick=0;
+    if(stage==2 && (pos.x-start)*direction<=0){stage=3;g_pc_dev_test_stick=0;}
+    if(stage==3) {
+        float dx=left+path[waypoint][0]-pos.x,dz=path[waypoint][1]-pos.z;
+        float distance=sqrtf(dx*dx+dz*dz);
+        if(path[waypoint][2]>0)push_frames++;
+        if((path[waypoint][2]>0 && push_frames>=path[waypoint][2]) ||
+           (path[waypoint][2]==0 && distance<12)) {
+            printf("[CoastTest] corner waypoint=%d position=(%.1f,%.1f,%.1f)\n",waypoint,pos.x,pos.y,pos.z);
+            waypoint++;push_frames=0;
+            if(waypoint==(int)(sizeof(path)/sizeof(path[0]))) {
+                printf("[CoastTest] PASS: %s crossing both ways, both corner pushes and escapes; scene=%d\n",
+                    direction<0?"SW":"SE",Save_Get(scene_no));
+                fflush(stdout);stage=4;g_pc_dev_test_stick=g_pc_dev_test_stick_y=0;
+            }
+        } else if(distance>0) {
+            g_pc_dev_test_stick=(int)lroundf(dx/distance*80);
+            g_pc_dev_test_stick_y=(int)lroundf(-dz/distance*80);
+        }
     }
-    if(frames%480==0 && stage!=3)
-        printf("[CoastTest] stage=%d x=%.1f z=%.1f scene=%d\n",stage,pos.x,pos.z,Save_Get(scene_no));
-    if(frames==12000 && stage!=3) {
-        fprintf(stderr,"[CoastTest] FAIL: stage=%d x=%.1f z=%.1f scene=%d\n",stage,pos.x,pos.z,Save_Get(scene_no));
-        g_pc_dev_test_stick=0;
+    if(stage>0 && stage<4 && (pos.y>80 || Save_Get(scene_no)!=SCENE_FG)) {
+        printf("[CoastTest] FAIL: left walkable ground y=%.1f scene=%d\n",pos.y,Save_Get(scene_no));
+        fflush(stdout);stage=5;g_pc_dev_test_stick=g_pc_dev_test_stick_y=0;
+    }
+    if(frames%480==0 && stage<4) {
+        printf("[CoastTest] stage=%d waypoint=%d x=%.1f z=%.1f scene=%d\n",stage,waypoint,pos.x,pos.z,Save_Get(scene_no));
+        fflush(stdout);
+    }
+    if(frames==18000 && stage<4) {
+        printf("[CoastTest] FAIL: stage=%d waypoint=%d x=%.1f z=%.1f scene=%d\n",stage,waypoint,pos.x,pos.z,Save_Get(scene_no));
+        fflush(stdout);stage=5;g_pc_dev_test_stick=g_pc_dev_test_stick_y=0;
     }
 }
 #endif

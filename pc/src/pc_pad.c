@@ -175,7 +175,8 @@ u32 PADRead(PADStatus* status) {
     if(g_pc_dev_coast_test) {
         status[0].button=0;
         status[0].stickX=g_pc_dev_test_stick;
-        status[0].stickY=status[0].substickX=status[0].substickY=0;
+        status[0].stickY=g_pc_dev_test_stick_y;
+        status[0].substickX=status[0].substickY=0;
     }
 #endif
 

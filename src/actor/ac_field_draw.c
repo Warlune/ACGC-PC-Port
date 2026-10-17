@@ -457,9 +457,8 @@ static void aFD_DrawBlock(aFD_block_c* block, ACTOR* actorx, GAME* game) {
 
 #ifdef ACO_DEV_EAST
         int ridge=pc_dev_ridge_side(block->bx,block->bz);
-        if(ridge && block->bz==5) {
-            /* Exterior mountain caps contain ocean behind the rock. A dry
-             * native field underlay makes this an inland mountain foot. */
+        if(ridge) {
+            /* Native grass ground under the modular cliff sections. */
             Matrix_translate(block->wpos.x,block->wpos.y+0.25f,block->wpos.z,MTX_LOAD);
             Matrix_scale(0.0625f,0.0625f,0.0625f,MTX_MULT);
             _texture_z_light_fog_prim_bg(game->graph);
@@ -468,19 +467,11 @@ static void aFD_DrawBlock(aFD_block_c* block, ACTOR* actorx, GAME* game) {
             gSPDisplayList(NEXT_BG_OPA_DISP,grd_s_f_1_model);
             CLOSE_DISP(game->graph);
             xlu_gfx=NULL;
+            opa_gfx=pc_dev_ridge_model(ridge,block->bz);
         }
 #endif
 
         Matrix_translate(block->wpos.x, block->wpos.y, block->wpos.z, MTX_LOAD);
-#ifdef ACO_DEV_EAST
-        /* Native exterior ridges occupy only the inner 160 units of their
-         * 640-unit border acre. Fill each shared seam with the native rock
-         * shape, using exactly the same X mapping as its collision grid. */
-        if(ridge) {
-            if(ridge<0)Matrix_translate(-1920.0f,0,0,MTX_MULT);
-            Matrix_scale(4.0f,1.0f,block->bz==5?1.5f:1.0f,MTX_MULT);
-        }
-#endif
         Matrix_scale(0.0625f, 0.0625f, 0.0625f, MTX_MULT);
         _texture_z_light_fog_prim_xlu(game->graph);
         _texture_z_light_fog_prim_bg(game->graph);
