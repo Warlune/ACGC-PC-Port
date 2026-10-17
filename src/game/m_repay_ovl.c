@@ -6,6 +6,13 @@
 #include "m_player_lib.h"
 #include "sys_matrix.h"
 
+#ifdef ACO_DEV_EAST
+#include "m_player.h"
+#include "pc_world_progression.h"
+extern int g_pc_dev_east;
+extern void pc_dev_gate_refresh(void);
+#endif
+
 static mRP_Ovl_c rp_ovl_data;
 static mActor_name_t mRP_money_name[MONEY_NUM] = { ITM_MONEY_100, ITM_MONEY_1000, ITM_MONEY_10000, ITM_MONEY_30000 };
 static u32 mRP_money_amount[MONEY_NUM] = { 100, 1000, 10000, 30000 };
@@ -75,6 +82,13 @@ static void mRP_move_Play(Submenu* submenu, mSM_MenuInfo_c* menu_info) {
     if ((trigger & BUTTON_A) || (trigger & BUTTON_START)) {
       if (repay_ovl->repay_amount != 0) {
         mPlib_request_main_give_from_submenu(ITM_MONEY_10000, mSM_OVL_REPAY, FALSE, TRUE);
+#ifdef ACO_DEV_EAST
+        if (g_pc_dev_east) {
+          pc_world_progression_record_loan_payment(Common_Get(player_no),
+              Common_Get(now_private)->inventory.loan, repay_ovl->loan, mPlayer_DEBT0);
+          pc_dev_gate_refresh();
+        }
+#endif
         Common_Get(now_private)->inventory.loan = repay_ovl->loan;
         Common_Get(now_private)->inventory.wallet = mRP_money_repay(repay_ovl);
       }

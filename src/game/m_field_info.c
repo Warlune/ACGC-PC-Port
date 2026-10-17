@@ -773,6 +773,28 @@ extern int mFI_BlockKind2BkNum(int* bx, int* bz, u32 kind) {
     bz[0] = 0;
 
     if (kind_p != NULL) {
+#if defined(TARGET_PC) && defined(ACO_DEV_EAST)
+        /* The outer towns keep shop-shaped storefronts for PC-only services,
+         * but vanilla shop progression and the intro guide belong to the
+         * starter town. Prefer its native shop without changing any saved
+         * combo or foreground actor IDs. */
+        if (kind == mRF_BLOCKKIND_SHOP) {
+            int x;
+            int z;
+            for (z = 1; z < BLOCK_Z_NUM - 1; z++) {
+                for (x = ACO_TOWN_X0 + 7; x < ACO_TOWN_X0 + 14; x++) {
+                    u32 k = kind_p[z * BLOCK_X_NUM + x];
+                    if ((k & kind) == kind) {
+                        bx[0] = x;
+                        bz[0] = z;
+                        return TRUE;
+                    }
+                }
+            }
+
+            return FALSE;
+        }
+#endif
         for (i = 0; i < BLOCK_TOTAL_NUM; i++) {
             u32 k = kind_p[0];
 

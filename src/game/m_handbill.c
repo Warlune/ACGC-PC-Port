@@ -5,6 +5,7 @@
 #include "m_string.h"
 #include "m_font.h"
 #include "libultra/libultra.h"
+#include "m_handbill_resource.h"
 
 static u32 Ps_table_rom_start;
 static u32 Ps_rom_start;
@@ -16,6 +17,28 @@ static u32 Handbillz_rom_start;
 static u32 Handbillz_start;
 
 static void mHandbillz_aram_init();
+
+static int mHandbill_GetResourceBodyParam(int table_resource, int data_resource, int index,
+                                          u32 max_body_size, u32* address, u32* size) {
+    u32 table_base = JW_GetAramAddress(table_resource);
+    u32 data_base = JW_GetAramAddress(data_resource);
+    u32 table_size = JW_GetResSizeFileNo(table_resource);
+    u32 data_size = JW_GetResSizeFileNo(data_resource);
+    if (!address || !size) return 0;
+    *address = 0;
+    *size = 0;
+    if (!table_base || !data_base || !mHandbill_ResourceTableIndexIsValid(table_size, index)) {
+        return 0;
+    }
+
+    mMsg_Get_BodyParam(table_base, data_base, index, address, size);
+    if (!mHandbill_ResourceSliceIsValid(data_base, data_size, *address, *size, max_body_size)) {
+        *address = 0;
+        *size = 0;
+        return 0;
+    }
+    return 1;
+}
 
 extern void mHandbill_aram_init() {
     Ps_table_rom_start = JW_GetAramAddress(RESOURCE_PS_TABLE);
@@ -469,15 +492,18 @@ static void mHandbill_Change_ControlCode2(u8* buf, int buf_size, int str_len, in
 }
 
 static void mHandbill_Get_SuperStringDataAddressAndSize(int super_no, u32* addr, u32* size) {
-    mMsg_Get_BodyParam(Super_table_rom_start, Super_rom_start, super_no, addr, size);
+    (void)mHandbill_GetResourceBodyParam(RESOURCE_SUPER_TABLE, RESOURCE_SUPER, super_no,
+                                         23, addr, size);
 }
 
 static void mHandbill_Get_PsStringDataAddressAndSize(int ps_no, u32* addr, u32* size) {
-    mMsg_Get_BodyParam(Ps_table_rom_start, Ps_rom_start, ps_no, addr, size);
+    (void)mHandbill_GetResourceBodyParam(RESOURCE_PS_TABLE, RESOURCE_PS, ps_no,
+                                         32, addr, size);
 }
 
 static void mHandbill_Get_MailStringDataAddressAndSize(int mail_no, u32* addr, u32* size) {
-    mMsg_Get_BodyParam(Handbill_table_rom_start, Handbill_rom_start, mail_no, addr, size);
+    (void)mHandbill_GetResourceBodyParam(RESOURCE_MAIL_TABLE, RESOURCE_MAIL, mail_no,
+                                         177, addr, size);
 }
 
 static void mHandbill_CheckSuperStringBorderAndCopy(u8* dst, int dst_size, int* header_back_start, u8* src,
@@ -513,7 +539,7 @@ static void mHandbill_CheckSuperStringBorderAndCopy(u8* dst, int dst_size, int* 
 }
 
 static void mHandbill_Load_SuperStringFromRom(u8* buf, int buf_size, int* header_back_start, int super_no) {
-    static u8 buff[90] ATTRIBUTE_ALIGN(32);
+    static u8 buff[128] ATTRIBUTE_ALIGN(32);
     u8 super_buf[43];
 
     u32 super_address;
@@ -525,17 +551,20 @@ static void mHandbill_Load_SuperStringFromRom(u8* buf, int buf_size, int* header
         tmp_size = buf_size;
         mHandbill_Get_SuperStringDataAddressAndSize(super_no, &super_address, &super_size);
         mem_clear(buf, tmp_size, CHAR_SPACE);
+        *header_back_start = buf_size;
 
         if (super_address != 0 && super_size != 0) {
-            u32 aligned_addr = ALIGN_PREV(super_address, 32); // align to 32 bytes for ARAM DMA
-            u32 data_ofs = super_address - aligned_addr;      // calculate offset for desired data
-            u32 size = ALIGN_NEXT(data_ofs + super_size, 32);
+            u32 aligned_addr;
+            u32 data_ofs;
+            u32 size;
             int i;
             int move_size;
             u8* dst;
             u8* src;
 
-            bzero(buff, 90);
+            if (!mHandbill_AlignedDmaRange(super_address, super_size, sizeof(buff),
+                                            &aligned_addr, &data_ofs, &size)) return;
+            bzero(buff, sizeof(buff));
             _JW_GetResourceAram(aligned_addr, buff, size);
 
             src = buff + data_ofs;
@@ -557,7 +586,7 @@ static void mHandbill_Load_SuperStringFromRom(u8* buf, int buf_size, int* header
 }
 
 static void mHandbill_Load_PsStringFromRom(u8* buf, int buf_size, int ps_no) {
-    static u8 buff[120] ATTRIBUTE_ALIGN(32);
+    static u8 buff[128] ATTRIBUTE_ALIGN(32);
 
     if (ps_no >= 0 && ps_no < mHandbill_MAIL_NUM) {
         u32 ps_address;
@@ -568,14 +597,19 @@ static void mHandbill_Load_PsStringFromRom(u8* buf, int buf_size, int ps_no) {
         if (ps_size == 0) {
             mem_clear(buf, buf_size, CHAR_SPACE);
         } else if (ps_address != 0) {
-            u32 aligned_addr = ALIGN_PREV(ps_address, 32); // align to 32 bytes for ARAM DMA
-            u32 data_ofs = ps_address - aligned_addr;      // calculate offset for desired data
-            u32 size = ALIGN_NEXT(data_ofs + ps_size, 32);
+            u32 aligned_addr;
+            u32 data_ofs;
+            u32 size;
             int i;
             int sz;
             u8* dst;
             u8* src;
 
+            if (!mHandbill_AlignedDmaRange(ps_address, ps_size, sizeof(buff),
+                                           &aligned_addr, &data_ofs, &size)) {
+                mem_clear(buf, buf_size, CHAR_SPACE);
+                return;
+            }
             _JW_GetResourceAram(aligned_addr, buff, size);
 
             /* Move desired data to output buffer */
@@ -599,9 +633,7 @@ static void mHandbill_Load_PsStringFromRom(u8* buf, int buf_size, int ps_no) {
     }
 }
 
-static u8 mHandbill_mail_buff[263] ATTRIBUTE_ALIGN(32);
-
-static u8 mHandbill_mail_buff[263] ATTRIBUTE_ALIGN(32);
+static u8 mHandbill_mail_buff[320] ATTRIBUTE_ALIGN(32);
 
 static void mHandbill_Load_MailFromRom(u8* buf, int mail_no) {
     if (mail_no >= 0 && mail_no < mHandbill_MAIL_NUM) {
@@ -613,9 +645,15 @@ static void mHandbill_Load_MailFromRom(u8* buf, int mail_no) {
         if (mail_size == 0) {
             mem_clear(buf, mHandbill_BODY_LEN, CHAR_NEW_LINE);
         } else if (mail_address != 0) {
-            u32 aligned_addr = ALIGN_PREV(mail_address, 32); // align to 32 bytes for ARAM DMA
-            u32 data_ofs = mail_address - aligned_addr;      // calculate offset for desired data
-            u32 size = ALIGN_NEXT(data_ofs + mail_size, 32);
+            u32 aligned_addr;
+            u32 data_ofs;
+            u32 size;
+
+            if (!mHandbill_AlignedDmaRange(mail_address, mail_size, sizeof(mHandbill_mail_buff),
+                                           &aligned_addr, &data_ofs, &size)) {
+                mem_clear(buf, mHandbill_BODY_LEN, CHAR_NEW_LINE);
+                return;
+            }
 
             _JW_GetResourceAram(aligned_addr, mHandbill_mail_buff, size);
 

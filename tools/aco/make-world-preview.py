@@ -3,10 +3,12 @@
 Requires generator JSON from generate_dev_town and the user's local GAFE01 disc.
 Never overwrites a save or edits the input. Output is a dev-only save format.
 """
-import argparse,json,runpy,struct
+import argparse,json,runpy,struct,re
 from pathlib import Path
 Disc=runpy.run_path(str(Path(__file__).with_name('disc-image.py')))['Disc']
-coastal_connections=runpy.run_path(str(Path(__file__).with_name('world-generation.py')))['coastal_connections']
+world_rules=runpy.run_path(str(Path(__file__).with_name('world-generation.py')))
+coastal_connections=world_rules['coastal_connections']
+world_service_map=world_rules['world_service_map']
 
 def assemble(source,destination,old,new,west,east,disc):
     if Path(source).resolve()==Path(destination).resolve():raise ValueError('Input/output must differ')
@@ -61,7 +63,11 @@ def assemble(source,destination,old,new,west,east,disc):
             if b[p]<7 and 1<=b[p+1]<=6:b[p]+=pad+7
         p=new['bridge']+new['bridge_x']
         if b[p]<7 and b[new['bridge']+2]&0xc0:b[p]+=pad+7
-    connections=coastal_connections(b,new,templates,Path(__file__).resolve().parents[2])
+    source_root=Path(__file__).resolve().parents[2]
+    connections=coastal_connections(b,new,templates,source_root)
+    entries=re.findall(r'\{\s*(BG_TYPE_\w+)\s*,\s*(FG_TYPE_\w+)\s*,\s*(mFM_BLOCK_TYPE_\w+)\s*\}',
+        (source_root/'src/data/combi/data_combi.c').read_text())
+    services=world_service_map(b,new,entries,templates,source_root,False)
     b[0x12:0x14]=bytes(2)
     checksum=(-sum(struct.unpack('>'+str(new['save_size']//2)+'H',b[:new['save_size']])))&65535
     struct.pack_into('>H',b,0x12,checksum)
@@ -73,7 +79,7 @@ def assemble(source,destination,old,new,west,east,disc):
     with destination.open('xb') as f:f.write(header+data)
     return dict(center_acres_preserved=30,west_seed=west['seed'],east_seed=east['seed'],
         native_generated_acres=60,columns=width,bytes=len(data)+64,coastal_connections=connections,
-        checksum='passed; backup mirrors main',source_unchanged=True)
+        checksum='passed; backup mirrors main',source_unchanged=True,world_services=services)
 
 if __name__=='__main__':
     p=argparse.ArgumentParser()

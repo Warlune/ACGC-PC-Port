@@ -300,6 +300,10 @@ set(PC_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_minimap.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_minimap_gl.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_dev_east.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_world_shops.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_world_shop_catalogs.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_world_shop_test.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_world_progression.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_text_draw.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_keybindings.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_nes_fixnes.c
@@ -563,3 +567,30 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/shaders/"
     DESTINATION bin/shaders
     FILES_MATCHING PATTERN "*.vert" PATTERN "*.frag"
 )
+
+# Economy and mortgage regressions without a running game or graphics context.
+add_executable(world_progression_smoke EXCLUDE_FROM_ALL tests/world_progression_smoke.c src/pc_world_progression.c)
+target_compile_definitions(world_progression_smoke PRIVATE PC_WORLD_PROGRESSION_TEST)
+add_executable(world_shops_smoke EXCLUDE_FROM_ALL tests/world_shops_smoke.c src/pc_world_shops.c src/pc_world_shop_catalogs.c)
+target_compile_definitions(world_shops_smoke PRIVATE PC_WORLD_SHOP_TEST)
+add_executable(handbill_resource_smoke EXCLUDE_FROM_ALL tests/handbill_resource_smoke.c)
+target_compile_options(handbill_resource_smoke PRIVATE -UNDEBUG)
+if(MINGW)
+    target_link_options(handbill_resource_smoke PRIVATE -static-libgcc)
+endif()
+set_target_properties(handbill_resource_smoke PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+foreach(test_target world_progression_smoke world_shops_smoke)
+    target_compile_options(${test_target} PRIVATE -ffunction-sections -fdata-sections)
+    target_link_options(${test_target} PRIVATE -Wl,--gc-sections)
+    if(TARGET SDL2::SDL2)
+        target_link_libraries(${test_target} SDL2::SDL2)
+    else()
+        target_link_libraries(${test_target} ${SDL2_LIBRARIES})
+    endif()
+    if(MINGW)
+        target_link_options(${test_target} PRIVATE -static-libgcc)
+    else()
+        target_link_libraries(${test_target} m)
+    endif()
+    set_target_properties(${test_target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+endforeach()

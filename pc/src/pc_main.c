@@ -4,6 +4,9 @@
 #include "pc_texture_pack.h"
 #include "pc_settings.h"
 #include "pc_dev_east.h"
+#include "pc_world_shops.h"
+#include "pc_world_shop_catalogs.h"
+#include "pc_world_shop_test.h"
 #include "pc_graphics.h"
 #include "pc_minimap.h"
 #include "pc_window_menu.h"
@@ -70,7 +73,7 @@ void pc_platform_init(void) {
 #ifdef ACO_DEV_EAST
         /* Automated movement tests keep rendering without stealing focus
          * from a separate interactive development session. */
-        if(g_pc_dev_coast_test) flags=(flags&~SDL_WINDOW_SHOWN)|SDL_WINDOW_HIDDEN;
+        if(g_pc_dev_coast_test || g_pc_dev_shop_test==1) flags=(flags&~SDL_WINDOW_SHOWN)|SDL_WINDOW_HIDDEN;
 #endif
         int win_w = g_pc_settings.window_width;
         int win_h = g_pc_settings.window_height;
@@ -191,6 +194,9 @@ int pc_platform_poll_events(void) {
 
     while (SDL_PollEvent(&event)) {
         pc_window_menu_event(&event);
+        if(pc_world_shops_active() && event.type!=SDL_QUIT && event.type!=SDL_WINDOWEVENT) {
+            pc_world_shops_handle_event(&event);continue;
+        }
         switch (event.type) {
             case SDL_QUIT:
                 g_pc_running = 0;
@@ -319,6 +325,18 @@ int main(int argc, char* argv[]) {
         else if (strcmp(argv[i], "--dev-se") == 0) { g_pc_dev_east_spawn=4; }
         else if (strcmp(argv[i], "--dev-outer-west") == 0) { g_pc_dev_east_spawn=5; }
         else if (strcmp(argv[i], "--dev-outer-east") == 0) { g_pc_dev_east_spawn=6; }
+        else if (strcmp(argv[i], "--dev-progress-stage") == 0 && i+1<argc) {
+            g_pc_dev_progress_stage=atoi(argv[++i]);
+            if(g_pc_dev_progress_stage<0 || g_pc_dev_progress_stage>2){fprintf(stderr,"Progress stage must be 0, 1 or 2.\n");return 1;}
+        }
+        else if (strcmp(argv[i], "--dev-shop") == 0 && i+1<argc) {
+            const char* shop=argv[++i];
+            g_pc_dev_shop_preview=!strcmp(shop,"night")?1:!strcmp(shop,"outfitter")?2:!strcmp(shop,"studio")?3:0;
+            if(!g_pc_dev_shop_preview){fprintf(stderr,"Choose night, outfitter or studio.\n");return 1;}
+        }
+        else if (strcmp(argv[i], "--dev-unlock-regions") == 0) { g_pc_dev_unlock_regions=1; }
+        else if (strcmp(argv[i], "--dev-shop-test") == 0) { g_pc_dev_shop_test=1; }
+        else if (strcmp(argv[i], "--dev-shop-menu") == 0) { g_pc_dev_shop_test=2; }
         else if (strcmp(argv[i], "--dev-coast-test") == 0) { g_pc_dev_coast_test=1; }
 #endif
         else if (strcmp(argv[i], "--framelimit") == 0) {

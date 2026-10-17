@@ -50,6 +50,7 @@ int pc_minimap_layout(PCMinimapLayout* out, int output_w, int output_h,
 
 #ifndef PC_MINIMAP_LAYOUT_TEST
 #include "pc_dev_east.h"
+#include "pc_world_progression.h"
 #include "pc_dev_coast_walls.h"
 #include "sys_matrix.h"
 #include "libultra/gu.h"
@@ -114,6 +115,15 @@ void pc_minimap_draw(GAME_PLAY* play) {
     signature=(signature^g_pc_settings.texture_filtering^g_pc_settings.anisotropy)*16777619u;
     signature=(signature^Common_Get(time.rtc_time.year)^Common_Get(time.rtc_time.month)*32^
         Common_Get(time.rtc_time.day))*16777619u;
+#ifdef ACO_DEV_EAST
+    /* The cached terrain atlas includes the gated fence. Re-bake when either
+     * mortgage unlocks so it disappears from the minimap immediately. */
+    if(g_pc_dev_east) {
+        unsigned gate_mask=(pc_world_progression_region_unlocked(PC_WORLD_REGION_WEST)?1u:0u) |
+                           (pc_world_progression_region_unlocked(PC_WORLD_REGION_EAST)?2u:0u);
+        signature=(signature^gate_mask)*16777619u;
+    }
+#endif
     GRAPH* graph=play->game.graph;
     OPEN_DISP(graph);
     Gfx* gfx=NOW_FONT_DISP;
@@ -159,6 +169,10 @@ void pc_minimap_draw(GAME_PLAY* play) {
         if(pc_dev_world_void_block(x,z)){opaque=NULL;translucent=NULL;}
 #endif
         if(opaque)gSPDisplayList(gfx++,opaque);
+#ifdef ACO_DEV_EAST
+        Gfx* gate=pc_dev_gate_model(x,z);
+        if(gate)gSPDisplayList(gfx++,gate);
+#endif
         if(translucent)gSPDisplayList(gfx++,translucent);
         gDPNoOpTag(gfx++,PC_MINIMAP_CAPTURE_END);
         if(next_tile==BLOCK_X_NUM*PC_MINIMAP_ROWS && g_pc_verbose)

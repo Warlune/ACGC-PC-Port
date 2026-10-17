@@ -1,6 +1,8 @@
 #include "m_play.h"
 #ifdef TARGET_PC
 #include "pc_minimap.h"
+#include "pc_world_shop_catalogs.h"
+#include "pc_world_shop_test.h"
 #include "pc_dev_east.h"
 #endif
 
@@ -542,6 +544,9 @@ static void Game_play_move_fbdemo_not_move(GAME* game) {
         game->doing_point = 9;
         game->doing_point = 0;
         game->doing_point_specific = 0x90;
+#ifdef ACO_DEV_EAST
+        pc_world_commerce_tick(play);
+#endif
         Actor_info_call_actor(play, &play->actor_info);
 #ifdef ACO_DEV_EAST
         pc_dev_coast_tick(play);
@@ -853,6 +858,7 @@ static void Game_play_draw(GAME_PLAY* play) {
             banti_draw(play);
             mSM_submenu_draw(&play->submenu, (GAME*)play);
 #ifdef TARGET_PC
+            pc_world_commerce_draw(play);
             pc_minimap_draw(play);
 #endif
         }
@@ -873,6 +879,9 @@ static void Game_play_draw(GAME_PLAY* play) {
 
 extern void play_main(GAME* game) {
     GAME_PLAY* play = (GAME_PLAY*)game;
+#ifdef ACO_DEV_EAST
+    pc_world_shop_test_tick(play);
+#endif
 
     PC_DIAG(5, "play_main: enter scene=%d frame=%d\n", play->scene_id, play->game_frame);
     game->doing_point = 0;

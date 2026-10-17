@@ -457,6 +457,7 @@ static void aFD_DrawBlock(aFD_block_c* block, ACTOR* actorx, GAME* game) {
         anime_data = mFI_GetBGTexAnimInfo(&anime_frame_count, block->bx, block->bz);
 
 #ifdef ACO_DEV_EAST
+        pc_dev_gate_refresh();
         int ridge=pc_dev_ridge_side(block->bx,block->bz);
         if(ridge) {
             /* Native grass ground under the modular cliff sections. */
@@ -522,6 +523,15 @@ static void aFD_DrawBlock(aFD_block_c* block, ACTOR* actorx, GAME* game) {
                 }
             }
         }
+
+#ifdef ACO_DEV_EAST
+        Gfx* gate=pc_dev_gate_model(block->bx,block->bz);
+        if(gate) {
+            OPEN_DISP(game->graph);
+            gSPDisplayList(NEXT_BG_OPA_DISP,gate);
+            CLOSE_DISP(game->graph);
+        }
+#endif
 
         if (aFD_SetMarinScrollXluSegment(actorx, game, block->bx, block->bz)) {
             if (GETREG(MYKREG, 77) != 3) {

@@ -223,6 +223,94 @@ void* pc_dev_outer_coast_water_model(int bx,int bz) {
     (void)bx;(void)bz;return NULL;
 }
 
+/* A full-height cedar fence follows each town seam. Collision uses matching
+ * native wall attributes; the displayed boards remain at native scale. */
+typedef struct { Vtx vertices[2048]; Gfx commands[1024]; int nv; } DevGateMesh;
+static DevGateMesh dev_gate_mesh[2];
+static DevGateMesh* dev_gate_active_mesh;
+static int dev_gate_mesh_ready[2];
+
+static void dev_gate_quad(float x0,float y0,float z0,float x1,float y1,float z1,int face) {
+    static const int corner[6][4][3] = {
+        {{0,0,0},{0,0,1},{0,1,1},{0,1,0}}, {{1,0,1},{1,0,0},{1,1,0},{1,1,1}},
+        {{0,0,1},{0,0,0},{1,0,0},{1,0,1}}, {{0,1,0},{0,1,1},{1,1,1},{1,1,0}},
+        {{1,0,0},{0,0,0},{0,1,0},{1,1,0}}, {{0,0,1},{1,0,1},{1,1,1},{0,1,1}}
+    };
+    Vtx* v=dev_gate_active_mesh->vertices+dev_gate_active_mesh->nv;
+    for(int i=0;i<4;i++) {
+        memset(v+i,0,sizeof(*v));
+        v[i].v.ob[0]=(short)lroundf((corner[face][i][0]?x1:x0)*16.0f);
+        v[i].v.ob[1]=(short)lroundf((corner[face][i][1]?y1:y0)*16.0f);
+        v[i].v.ob[2]=(short)lroundf((corner[face][i][2]?z1:z0)*16.0f);
+        v[i].n.a=255;
+    }
+    dev_gate_active_mesh->nv+=4;
+}
+
+static void dev_gate_box(float x0,float y0,float z0,float x1,float y1,float z1) {
+    for(int face=0;face<6;face++)dev_gate_quad(x0,y0,z0,x1,y1,z1,face);
+}
+
+static void dev_gate_build(int seam_idx) {
+    DevGateMesh* mesh=&dev_gate_mesh[seam_idx];
+    Gfx* g=mesh->commands;
+    mesh->nv=0;
+    dev_gate_active_mesh=mesh;
+    /* Fence only the dry shoreline units. Native sea/wave cells stay open so
+     * the barrier never paints over water or turns a boat route into a wall. */
+    for(int uz=0;uz<UT_Z_NUM;) {
+        int west_attr=gate_saved_attr[seam_idx][0][0][uz];
+        int east_attr=gate_saved_attr[seam_idx][1][0][uz];
+        int west_dry=pc_world_progression_gate_collision_attribute(0,west_attr,mCoBG_ATTRIBUTE_33)==mCoBG_ATTRIBUTE_33;
+        int east_dry=pc_world_progression_gate_collision_attribute(0,east_attr,mCoBG_ATTRIBUTE_34)==mCoBG_ATTRIBUTE_34;
+        if(!west_dry && !east_dry) { uz++; continue; }
+        int start=uz;
+        uz++;
+        while(uz<UT_Z_NUM) {
+            west_attr=gate_saved_attr[seam_idx][0][0][uz];
+            east_attr=gate_saved_attr[seam_idx][1][0][uz];
+            west_dry=pc_world_progression_gate_collision_attribute(0,west_attr,mCoBG_ATTRIBUTE_33)==mCoBG_ATTRIBUTE_33;
+            east_dry=pc_world_progression_gate_collision_attribute(0,east_attr,mCoBG_ATTRIBUTE_34)==mCoBG_ATTRIBUTE_34;
+            if(!west_dry && !east_dry) break;
+            uz++;
+        }
+        int z0=start*40,z1=uz*40;
+        /* Dense square pickets, twin rails, and reinforced end posts. */
+        dev_gate_box(610,0,z0,640,96,z0+4);
+        dev_gate_box(610,0,z1-4,640,96,z1);
+        dev_gate_box(610,28,z0,640,44,z1);
+        dev_gate_box(610,68,z0,640,84,z1);
+        for(int z=z0+40;z<z1-8;z+=80)
+            dev_gate_box(610,0,z,640,96,z+4);
+    }
+    gDPSetRenderMode(g++,G_RM_FOG_SHADE_A,G_RM_AA_ZB_OPA_SURF2);
+    gDPSetCombineMode(g++,G_CC_PRIMITIVE,G_CC_PRIMITIVE);
+    gDPSetPrimColor(g++,0,255,137,83,43,255);
+    gSPLoadGeometryMode(g++,G_ZBUFFER|G_SHADE|G_FOG);
+    for(int i=0;i<mesh->nv;i+=4) {
+        gSPVertex(g++,mesh->vertices+i,4,0);
+        gSPNTrianglesInit_5b(g++,2,0,1,2,0,2,3,0,0,0);
+    }
+    gSPEndDisplayList(g++);
+    dev_gate_mesh_ready[seam_idx]=1;
+}
+
+void* pc_dev_gate_model(int bx,int bz) {
+    if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz!=6)return NULL;
+    for(int seam_idx=0;seam_idx<2;seam_idx++) {
+        int seam=ACO_TOWN_X0+7+seam_idx*7;
+        pc_world_region_t region=seam_idx==0?PC_WORLD_REGION_WEST:PC_WORLD_REGION_EAST;
+        if(bx==seam-1 && !pc_world_progression_region_unlocked(region)) {
+            if(!gate_saved)pc_dev_gate_refresh();
+            if(!gate_saved)return NULL;
+            if(!dev_gate_mesh_ready[seam_idx])dev_gate_build(seam_idx);
+            if(dev_gate_mesh[seam_idx].nv==0)return NULL;
+            return dev_gate_mesh[seam_idx].commands;
+        }
+    }
+    return NULL;
+}
+
 /* Continue the inaccessible plateau behind the outer cliffs. Each 160-unit
  * piece keeps the native grass UV density; two extra acres cover the widened
  * camera without changing the field size, cliff shape or collision. */

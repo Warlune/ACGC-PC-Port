@@ -1,6 +1,8 @@
 /* Explicitly opt-in experimental world. Not the normal save/game format. */
 #ifdef ACO_DEV_EAST
 #include "pc_dev_east.h"
+#include "pc_world_shop_catalogs.h"
+#include "pc_world_progression.h"
 #include "pc_settings.h"
 #include "m_play.h"
 #include "m_player_lib.h"
@@ -10,6 +12,7 @@
 #include "m_card.h"
 #include "m_event.h"
 #include "m_home.h"
+#include "m_msg.h"
 #include "m_private.h"
 #include "m_random_field.h"
 #include "m_rcp.h"
@@ -65,7 +68,68 @@ int g_pc_dev_east_spawn;
 int g_pc_dev_coast_test;
 int g_pc_dev_test_stick;
 int g_pc_dev_test_stick_y;
+int g_pc_dev_unlock_regions;
+int g_pc_dev_progress_stage=-1;
+#define PC_DEV_GATE_FIRST_ROW 6
+#define PC_DEV_GATE_LAST_ROW 6
+static u8 gate_saved_attr[2][2][PC_DEV_GATE_LAST_ROW - PC_DEV_GATE_FIRST_ROW + 1][UT_Z_NUM];
+static int gate_saved;
 #include "pc_dev_ridge.inc"
+
+static mFM_bg_info_c* gate_saved_field;
+static int gate_applied_mask=-1;
+
+void pc_dev_gate_invalidate_collision(void) {
+    gate_saved_field=NULL;
+    gate_saved=0;
+    gate_applied_mask=-1;
+    dev_gate_mesh_ready[0]=0;
+    dev_gate_mesh_ready[1]=0;
+}
+
+static void pc_dev_gate_save_collision(void) {
+    if(!g_fdinfo || gate_saved_field==&g_fdinfo->block_info[0].bg_info)return;
+    gate_saved_field=&g_fdinfo->block_info[0].bg_info;
+    gate_saved=1;
+    gate_applied_mask=-1;
+    for(int seam_idx=0;seam_idx<2;seam_idx++) {
+        int seam=ACO_TOWN_X0+7+seam_idx*7;
+        for(int side=0;side<2;side++) for(int bz=PC_DEV_GATE_FIRST_ROW;bz<=PC_DEV_GATE_LAST_ROW;bz++) {
+            int bx=side?seam:seam-1;
+            mFM_bg_info_c* bg=&g_fdinfo->block_info[bz*BLOCK_X_NUM+bx].bg_info;
+            int ux=side?0:UT_X_NUM-1;
+            for(int uz=0;uz<UT_Z_NUM;uz++) {
+                gate_saved_attr[seam_idx][side][bz-PC_DEV_GATE_FIRST_ROW][uz]=bg->collision[uz][ux].data.unit_attribute;
+            }
+        }
+    }
+}
+
+void pc_dev_gate_refresh(void) {
+    if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || !g_fdinfo)return;
+    pc_dev_gate_save_collision();
+    if(!gate_saved)return;
+    int mask=0;
+    if(pc_world_progression_region_unlocked(PC_WORLD_REGION_WEST))mask|=1;
+    if(pc_world_progression_region_unlocked(PC_WORLD_REGION_EAST))mask|=2;
+    if(mask==gate_applied_mask)return;
+    for(int seam_idx=0;seam_idx<2;seam_idx++) {
+        int seam=ACO_TOWN_X0+7+seam_idx*7;
+        int unlocked=(mask&(1<<seam_idx))!=0;
+        for(int side=0;side<2;side++) for(int bz=PC_DEV_GATE_FIRST_ROW;bz<=PC_DEV_GATE_LAST_ROW;bz++) {
+            int bx=side?seam:seam-1;
+            mFM_bg_info_c* bg=&g_fdinfo->block_info[bz*BLOCK_X_NUM+bx].bg_info;
+            int ux=side?0:UT_X_NUM-1;
+            u8 wall_attr=side?mCoBG_ATTRIBUTE_34:mCoBG_ATTRIBUTE_33;
+            for(int uz=0;uz<UT_Z_NUM;uz++) {
+                bg->collision[uz][ux].data.unit_attribute=pc_world_progression_gate_collision_attribute(
+                    unlocked,gate_saved_attr[seam_idx][side][bz-PC_DEV_GATE_FIRST_ROW][uz],wall_attr);
+            }
+        }
+    }
+    gate_applied_mask=mask;
+}
+
 int pc_dev_world_void_block(int bx,int bz) {
     return g_pc_dev_east && Save_Get(scene_no)==SCENE_FG && bz<6 &&
         (bx<ACO_TOWN_X0 || bx>ACO_TOWN_X0+20);
@@ -131,10 +195,16 @@ void pc_dev_coast_field(void) {
             bg->keep_h[uz][ux]=c.data.center;
         }
     }
+    pc_dev_gate_refresh();
 }
 extern int pc_save_loaded;
 static int dev_player;
 static void choose_spawn(void) {
+    if(g_pc_dev_shop_preview) {
+        float x,z;
+        if(!pc_world_commerce_dev_spawn(g_pc_dev_shop_preview,&x,&z)){fprintf(stderr,"Requested shop is missing from this world.\n");exit(1);}
+        Common_Set(door_data.exit_position.x,(int)x);Common_Set(door_data.exit_position.z,(int)z);return;
+    }
     if(g_pc_dev_east_spawn>=5) {
         Common_Set(door_data.exit_position.x,ACO_TOWN_X0*640+(g_pc_dev_east_spawn==5?660:21*640-660));
         Common_Set(door_data.exit_position.z,4020);
@@ -169,6 +239,9 @@ void pc_dev_east_prepare(void) {
     if(!pc_save_loaded || sizeof(Save)!=0x38000) {
         fprintf(stderr,"[DevWorld] Converted triple-town development save required.\n");exit(1);
     }
+    /* The development boot skips Trademark, which normally initializes these
+     * ARAM message/letter/string addresses before any resident renewal runs. */
+    mMsg_aram_init();
     dev_player=-1;
     for(int i=0;i<PLAYER_NUM;i++) if(mPr_CheckPrivate(&Save_Get(private_data[i])) && Save_Get(private_data[i]).exists) {
         dev_player=i;break;
@@ -181,7 +254,8 @@ void pc_dev_east_prepare(void) {
     Common_Set(house_owner_name,-1);mHm_SetNowHome();
     Save_Set(scene_no,SCENE_FG);
     Common_Set(scene_from_title_demo,-1);mEv_SetTitleDemo(mEv_TITLEDEMO_NONE);
-    mEv_UnSetFirstJob();mEv_UnSetFirstIntro();
+    if(mEv_CheckFirstJob())mEv_UnSetFirstJob();
+    mEv_UnSetFirstIntro();
     g_pc_settings.borderless_acres=1;g_mPlib_wade_disabled=1;
     g_pc_settings.disable_resetti=1;
     Common_Set(door_data.next_scene_id,SCENE_FG);
@@ -198,16 +272,89 @@ void pc_dev_east_start(GAME_PLAY* play) {
     if(mCD_InitGameStart_bg(dev_player,dev_player,mCD_START_COND_1,&channel)!=mCD_TRANS_ERR_NONE || !Common_Get(now_private)) {
         fprintf(stderr,"[DevWorld] Resident initialization failed\n");exit(1);
     }
-    mEv_SetTitleDemo(mEv_TITLEDEMO_NONE);mEv_UnSetFirstJob();mEv_UnSetFirstIntro();
+    Common_Set(player_no,dev_player);
+    Common_Set(now_private,&Save_Get(private_data[dev_player]));
+    mEv_SetTitleDemo(mEv_TITLEDEMO_NONE);
+    if(mEv_CheckFirstJob())mEv_UnSetFirstJob();
+    mEv_UnSetFirstIntro();
     /* Choose after daily renewal too, so a newly grown tree cannot occupy
      * the development starting tile. Scene data is not instantiated yet. */
     choose_spawn();
     if(play->player_data)play->player_data->position=Common_Get(door_data.exit_position);
     mFM_SetBlockKindLoadCombi();
+    pc_dev_gate_invalidate_collision();
     printf("[DevWorld] Three adjacent towns ready in outdoor scene %d; generated beaches/railways retained\n",Save_Get(scene_no));
 }
 void pc_dev_coast_tick(GAME_PLAY* play) {
     if(!g_pc_dev_coast_test)return;
+    /* Hidden CLI regression for each closed mortgage gate. The player uses
+     * the ordinary dry-shore spawn and PAD input, exercising live collision. */
+    if(g_pc_dev_progress_stage==0 || g_pc_dev_progress_stage==1) {
+        static int gate_test_phase,gate_test_frames,gate_test_seam;
+        static float gate_test_start;
+        PLAYER_ACTOR* gate_player=get_player_actor_withoutCheck(play);
+        if(!gate_player || !g_fdinfo)return;
+        int direction=g_pc_dev_progress_stage==0?1:-1;
+        int seam_idx=g_pc_dev_progress_stage==0?1:0;
+        int seam=ACO_TOWN_X0+7+seam_idx*7;
+        float seam_x=(float)seam*640.0f;
+        xyz_t* gate_pos=&gate_player->actor_class.world.position;
+        if(gate_test_phase==0) {
+            gate_test_seam=seam;
+            /* --dev-se starts 740 units west of the east seam; --dev-sw
+             * starts 740 units east of the west seam. Keep the native spawn
+             * position so this test includes ordinary field loading. */
+            gate_test_start=gate_pos->x;
+            float approach=(seam_x-gate_test_start)*direction;
+            if(approach<500.0f || approach>1000.0f || fabsf(gate_pos->z-4020.0f)>180.0f) {
+                printf("[GateTest] FAIL: unexpected native spawn x=%.1f z=%.1f seam=%d\n",
+                    gate_pos->x,gate_pos->z,seam);
+                fflush(stdout);exit(1);
+            }
+            gate_test_frames=0;
+            g_pc_dev_test_stick=direction*80;
+            g_pc_dev_test_stick_y=0;
+            gate_test_phase=1;
+            printf("[GateTest] stage=%d seam=%d approach from native spawn x=%.1f\n",
+                g_pc_dev_progress_stage,seam,gate_pos->x);
+            fflush(stdout);
+            return;
+        }
+        if(gate_test_phase==1) {
+            gate_test_frames++;
+            if(gate_test_frames<600)return;
+            float progress=(gate_pos->x-gate_test_start)*direction;
+            int crossed=direction>0?gate_pos->x>=seam_x:gate_pos->x<=seam_x;
+            if(progress<200.0f || progress>1000.0f || crossed ||
+               gate_pos->y>80.0f || Save_Get(scene_no)!=SCENE_FG) {
+                printf("[GateTest] FAIL: approach check crossed=%d x=%.1f progress=%.1f\n",
+                    crossed,gate_pos->x,progress);
+                fflush(stdout);exit(1);
+            }
+            gate_test_start=gate_pos->x;
+            gate_test_phase=2;
+            gate_test_frames=0;
+            g_pc_dev_test_stick=-direction*80;
+            return;
+        }
+        if(gate_test_phase==2) {
+            gate_test_frames++;
+            if(gate_test_frames<60)return;
+            float retreat=(gate_pos->x-gate_test_start)*-direction;
+            if(retreat<40.0f || gate_pos->y>80.0f || Save_Get(scene_no)!=SCENE_FG) {
+                printf("[GateTest] FAIL: could not retreat from seam=%d (%.1f units)\n",
+                    gate_test_seam,retreat);
+                fflush(stdout);exit(1);
+            }
+            printf("[GateTest] PASS: stage=%d closed seam=%d allowed approach and retreat; stopped at x=%.1f\n",
+                g_pc_dev_progress_stage,gate_test_seam,gate_test_start);
+            fflush(stdout);
+            gate_test_phase=3;
+            g_pc_dev_test_stick=0;
+            return;
+        }
+        return;
+    }
     if(g_pc_dev_east_spawn>=5) {
         static int audited,corner_frames;
         static float start_x;
