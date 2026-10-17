@@ -2,6 +2,8 @@
 #ifdef ACO_DEV_EAST
 #include "pc_dev_east.h"
 #include "pc_settings.h"
+#include "pc_dev_scenery.h"
+#include "m_name_table.h"
 #include "m_play.h"
 #include "m_player_lib.h"
 #include "m_common_data.h"
@@ -64,6 +66,56 @@ int g_pc_dev_coast_test;
 int g_pc_dev_test_stick;
 int g_pc_dev_test_stick_y;
 #include "pc_dev_ridge.inc"
+
+/* Reuse natural foreground anchors selected by the native town generator.
+ * These are decorative copies on the inaccessible plateau, not new actors
+ * or save items. Source acres keep their native placement and spacing. */
+int pc_dev_outer_scenery(PCDevScenery* out,int capacity,float player_x,float player_z) {
+    int count=0,farthest=0;
+    float farthest_distance=-1;
+    if(!out || capacity<=0 || !g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || !g_fdinfo)return 0;
+    for(int side=0;side<2;side++) {
+        int bx=side?BLOCK_X_NUM-1:0;
+        if((side?BLOCK_X_NUM*640-player_x:player_x)>1900)continue;
+        for(int z=1;z<=7;z++) {
+            if(fabsf(z*640+320-player_z)>1700)continue;
+            float height=280+Save_Get(combi_table[z][bx]).height*120;
+            for(int piece=0;piece<3;piece++) {
+                /* Interior natural acres give a fuller canopy than the
+                 * mostly cleared native edge/railway landmark acres. */
+                int sx=side?BLOCK_X_NUM-3-piece:2+piece;
+                int sz=(z-1+piece)%5+1;
+                for(int uz=0;uz<16;uz++)for(int ux=0;ux<16;ux++) {
+                    mActor_name_t item=Save_Get(fg[sz-1][sx-1]).items[uz][ux];
+                    if(IS_ITEM_GROWN_TREE(item))
+                        item=FGTreeType_check(item)==mNT_TREE_TYPE_CEDAR?CEDAR_TREE:TREE;
+                    else if(!IS_ITEM_GROWN_FLOWER(item) && item!=GRASS_A &&
+                            item!=GRASS_B && item!=GRASS_C &&
+                            !(item>=ROCK_A && item<=ROCK_E))continue;
+                    float x=side?260+ux*40+piece*640:380-ux*40-piece*640;
+                    if(x< -1200 || x>1840 || (z==1 && uz<2) || (z==7 && uz>13))continue;
+                    PCDevScenery candidate={bx*640+x,height,z*640+uz*40+20,item};
+                    float dx=candidate.x-player_x,dz=candidate.z-player_z;
+                    float distance=dx*dx+dz*dz;
+                    if(count<capacity)out[count++]=candidate;
+                    else {
+                        if(farthest_distance<0) {
+                            for(int i=0;i<count;i++) {
+                                dx=out[i].x-player_x;dz=out[i].z-player_z;
+                                float d=dx*dx+dz*dz;
+                                if(d>farthest_distance){farthest=i;farthest_distance=d;}
+                            }
+                        }
+                        if(distance<farthest_distance) {
+                            out[farthest]=candidate;farthest_distance=-1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return count;
+}
 int pc_dev_ridge_side(int bx,int bz) {
     if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz<1 || bz>5)return 0;
     for(int seam=7;seam<BLOCK_X_NUM;seam+=7) {
