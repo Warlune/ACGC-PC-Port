@@ -1,3 +1,4 @@
+#include "pc_minimap.h"
 /* pc_gx.c - GX API → OpenGL 3.3: state management, vertex submission, draw dispatch */
 #include "pc_gx_internal.h"
 #include "pc_profiler.h"
@@ -423,6 +424,7 @@ void pc_gx_restore_after_nes(void) {
 }
 
 void pc_gx_shutdown(void) {
+    pc_minimap_shutdown();
     pc_gx_tev_shutdown();
     pc_gx_texture_shutdown();
 #ifdef PC_ENHANCEMENTS

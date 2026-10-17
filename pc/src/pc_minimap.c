@@ -1,4 +1,4 @@
-/* Read-only town HUD; uses the same acre art and palettes as the game's map. */
+/* Actual terrain atlas: orthographic native meshes, separate from map art. */
 #include "pc_minimap.h"
 #include "pc_platform.h"
 #include "pc_settings.h"
@@ -12,36 +12,44 @@
 #include "graph.h"
 #include <math.h>
 
-extern int pc_minimap_get_tile(int bx, int bz, const u8** texture, const u16** palette);
+
 
 int pc_minimap_layout(PCMinimapLayout* out, int output_w, int output_h,
                       int size, float acre_x, float acre_z) {
     if (!out || output_w<=0 || output_h<=0 || !isfinite(acre_x) || !isfinite(acre_z) ||
-        acre_x<1.0f || acre_x>=FG_BLOCK_X_NUM+1.0f || acre_z<1.0f || acre_z>=FG_BLOCK_Z_NUM+1.0f) return 0;
+        acre_x<0.0f || acre_x>=BLOCK_X_NUM || acre_z<0.0f || acre_z>=PC_MINIMAP_ROWS) return 0;
     if (size<0 || size>2) size=0;
     static const float heights[]={60.0f,78.0f,96.0f};
     /* Stretch coordinates anchor to the real right edge. Counter-scale X
      * so acre squares retain their shape on widescreen outputs. */
     float sx=(4.0f/3.0f)*output_h/output_w;
     out->height=heights[size];
-    out->width=out->height*((float)FG_BLOCK_X_NUM/FG_BLOCK_Z_NUM)*sx;
-    if(out->width>110.0f*sx) {
-        out->height*=110.0f*sx/out->width;
-        out->width=110.0f*sx;
+    out->width=out->height*((float)BLOCK_X_NUM/PC_MINIMAP_ROWS)*sx;
+    static const float max_widths[]={110,145,180};
+    float limit=fminf(max_widths[size]*sx,320-12*sx);
+    if(out->width>limit) {
+        out->height*=limit/out->width;
+        out->width=limit;
     }
     out->left=320.0f-6.0f*sx-out->width;
     out->top=8.0f;
-    out->marker_x=out->left+(acre_x-1.0f)*out->width/FG_BLOCK_X_NUM;
-    out->marker_y=out->top+(acre_z-1.0f)*out->height/FG_BLOCK_Z_NUM;
+    out->marker_x=out->left+acre_x*out->width/BLOCK_X_NUM;
+    out->marker_y=out->top+acre_z*out->height/PC_MINIMAP_ROWS;
     return 1;
 }
 
-static Gfx* minimap_rect(Gfx* gfx, float x0,float y0,float x1,float y1) {
-    return gfx_gSPTextureRectangle1(gfx,(int)(x0*4),(int)(y0*4),
-        (int)(x1*4),(int)(y1*4),0,0,0,0,0);
-}
+#ifndef PC_MINIMAP_LAYOUT_TEST
+#include "pc_dev_east.h"
+#include "sys_matrix.h"
+#include "libultra/gu.h"
+
+static Gfx map_scroll[]={gsSPEndDisplayList()};
+static Gfx map_beach_color[]={gsDPSetEnvColor(255,255,255,255),gsSPEndDisplayList()};
+static Lights1 map_light=gdSPDefLights1(140,140,140,115,115,115,0,0,127);
+extern Gfx grd_s_f_1_model[];
 
 void pc_minimap_draw(GAME_PLAY* play) {
+    pc_minimap_set_overlay(NULL);
     if (!g_pc_settings.minimap || g_pc_settings.minimap_opacity<=0 || g_pc_paused ||
         !play || !play->game.graph || play->submenu.mode!=mSM_MODE_IDLE ||
         play->fb_mode!=FBDEMO_MODE_NONE || play->fb_wipe_mode!=WIPE_MODE_NONE || mEv_IsTitleDemo() ||
@@ -53,47 +61,67 @@ void pc_minimap_draw(GAME_PLAY* play) {
     if (!pc_minimap_layout(&map,g_pc_window_w,g_pc_window_h,g_pc_settings.minimap_size,
             player->actor_class.world.position.x/mFI_BK_WORLDSIZE_X_F,
             player->actor_class.world.position.z/mFI_BK_WORLDSIZE_Z_F)) return;
-    int percent=g_pc_settings.minimap_opacity;
-    if (percent>100) percent=100;
-    int alpha=(percent*255+50)/100;
-    float sx=(4.0f/3.0f)*g_pc_window_h/g_pc_window_w;
+    pc_minimap_set_overlay(&map);
+    static const void* field;
+    static int next_tile;
+    static unsigned cached_signature;
+    unsigned signature=2166136261u;
+    for(int tile=0;tile<BLOCK_X_NUM*PC_MINIMAP_ROWS;tile++) {
+        mFM_combination_c id=g_fdinfo->block_info[tile].bg_info.bg_id;
+        signature=(signature^id.combination_type^(id.height<<16))*16777619u;
+    }
+    signature=(signature^g_pc_settings.texture_replacements)*16777619u;
+    signature=(signature^g_pc_settings.texture_filtering^g_pc_settings.anisotropy)*16777619u;
+    signature=(signature^Common_Get(time.rtc_time.year)^Common_Get(time.rtc_time.month)*32^
+        Common_Get(time.rtc_time.day))*16777619u;
     GRAPH* graph=play->game.graph;
     OPEN_DISP(graph);
     Gfx* gfx=NOW_FONT_DISP;
-    gDPNoOpTag(gfx++,PC_NOOP_WIDESCREEN_STRETCH);
-    gDPPipeSync(gfx++);
-    gDPSetOtherMode(gfx++,
-        G_AD_DISABLE|G_CD_MAGICSQ|G_CK_NONE|G_TC_FILT|G_TF_BILERP|G_TT_RGBA16|
-        G_TL_TILE|G_TD_CLAMP|G_TP_NONE|G_CYC_1CYCLE|G_PM_NPRIMITIVE,
-        G_AC_NONE|G_ZS_PRIM|G_RM_XLU_SURF|G_RM_XLU_SURF2);
-    gDPSetCombineMode(gfx++,G_CC_PRIMITIVE,G_CC_PRIMITIVE);
-    gDPSetPrimColor(gfx++,0,0,10,18,22,alpha);
-    gfx=minimap_rect(gfx,map.left-2*sx,map.top-2,map.left+map.width+2*sx,map.top+map.height+2);
-    gDPPipeSync(gfx++);
-    /* Texture color and alpha are modulated by the user's opacity. */
-    gDPSetCombineMode(gfx++,G_CC_MODULATEIA_PRIM,G_CC_MODULATEIA_PRIM);
-    gDPSetPrimColor(gfx++,0,0,255,255,255,alpha);
-    for (int z=0;z<FG_BLOCK_Z_NUM;z++) for (int x=0;x<FG_BLOCK_X_NUM;x++) {
-        const u8* texture;
-        const u16* palette;
-        if (!pc_minimap_get_tile(x+1,z+1,&texture,&palette)) continue;
-        float x0=map.left+x*map.width/FG_BLOCK_X_NUM, x1=map.left+(x+1)*map.width/FG_BLOCK_X_NUM;
-        float y0=map.top+z*map.height/FG_BLOCK_Z_NUM, y1=map.top+(z+1)*map.height/FG_BLOCK_Z_NUM;
-        gDPPipeSync(gfx++);
-        gDPLoadTLUT_Dolphin(gfx++,15,16,1,palette);
-        gDPLoadTextureBlock_4b_Dolphin(gfx++,texture,G_IM_FMT_CI,32,32,15,0,0,0,0);
-        gfx=gfx_gSPTextureRectangle1(gfx,(int)(x0*4),(int)(y0*4),(int)(x1*4),(int)(y1*4),
-            0,0,0,(int)(32*1024/(x1-x0)),(int)(32*1024/(y1-y0)));
+    if(field!=g_fdinfo || signature!=cached_signature) {
+        field=g_fdinfo;cached_signature=signature;next_tile=0;
+        gDPNoOpTag(gfx++,PC_MINIMAP_RESET);
     }
-    gDPPipeSync(gfx++);
-    gDPSetCombineMode(gfx++,G_CC_PRIMITIVE,G_CC_PRIMITIVE);
-    gDPSetPrimColor(gfx++,0,0,15,20,22,alpha);
-    gfx=minimap_rect(gfx,map.marker_x-2*sx,map.marker_y-2,map.marker_x+2*sx,map.marker_y+2);
-    gDPPipeSync(gfx++);
-    gDPSetPrimColor(gfx++,0,0,255,245,145,alpha);
-    gfx=minimap_rect(gfx,map.marker_x-sx,map.marker_y-1,map.marker_x+sx,map.marker_y+1);
-    gDPPipeSync(gfx++);
-    gDPNoOpTag(gfx++,PC_NOOP_WIDESCREEN_STRETCH_OFF);
+    /* Bake at most two acres per frame after a field/terrain/texture change.
+     * Once complete, normal frames only composite the cached terrain. */
+    for(int i=0;i<2 && next_tile<BLOCK_X_NUM*PC_MINIMAP_ROWS;i++) {
+        int tile=next_tile++;
+        int x=tile%BLOCK_X_NUM,z=tile/BLOCK_X_NUM;
+        mFM_bg_info_c* bg=&g_fdinfo->block_info[z*BLOCK_X_NUM+x].bg_info;
+        gDPNoOpTag(gfx++,PC_MINIMAP_CAPTURE+tile);
+        gDPPipeSync(gfx++);
+        gSPTexture(gfx++,65535,65535,0,0,G_ON);
+        gDPSetOtherMode(gfx++,G_AD_NOTPATTERN|G_CD_MAGICSQ|G_CK_NONE|G_TC_FILT|
+            G_TF_BILERP|G_TT_NONE|G_TL_TILE|G_TD_CLAMP|G_TP_PERSP|G_CYC_2CYCLE|G_PM_NPRIMITIVE,
+            G_AC_NONE|G_ZS_PIXEL|G_RM_AA_ZB_OPA_SURF|G_RM_AA_ZB_OPA_SURF2);
+        gSPSegment(gfx++,8,map_scroll);gSPSegment(gfx++,9,map_scroll);
+        gSPSegment(gfx++,11,map_scroll);gSPSegment(gfx++,12,map_beach_color);gSPSegment(gfx++,13,map_scroll);
+        gSPSetLights1(gfx++,map_light);
+        Mtx* projection=GRAPH_ALLOC_TYPE(graph,Mtx,1);
+        guOrtho(projection,0,640,-640,0,-1000,1000,1);
+        gSPMatrix(gfx++,projection,G_MTX_NOPUSH|G_MTX_LOAD|G_MTX_PROJECTION);
+        Matrix_push();
+        Matrix_RotateX(0x4000,MTX_LOAD);
+        Matrix_translate(0,bg->bg_id.height*120,0,MTX_MULT);
+        Matrix_scale(0.0625f,0.0625f,0.0625f,MTX_MULT);
+        gSPMatrix(gfx++,_Matrix_to_Mtx_new(graph),G_MTX_NOPUSH|G_MTX_LOAD|G_MTX_MODELVIEW);
+        Matrix_pull();
+        Gfx* opaque=bg->opaque_gfx;
+        Gfx* translucent=bg->translucent_gfx;
+#ifdef ACO_DEV_EAST
+        int ridge=pc_dev_ridge_side(x,z);
+        if(ridge) {
+            gSPDisplayList(gfx++,grd_s_f_1_model);
+            opaque=pc_dev_ridge_model(ridge,z);translucent=NULL;
+        }
+#endif
+        if(opaque)gSPDisplayList(gfx++,opaque);
+        if(translucent)gSPDisplayList(gfx++,translucent);
+        gDPNoOpTag(gfx++,PC_MINIMAP_CAPTURE_END);
+        if(next_tile==BLOCK_X_NUM*PC_MINIMAP_ROWS && g_pc_verbose)
+            printf("[Minimap] Terrain atlas ready: %d x %d acres, signature=%08x\n",
+                BLOCK_X_NUM,PC_MINIMAP_ROWS,cached_signature);
+    }
     SET_FONT_DISP(gfx);
     CLOSE_DISP(graph);
 }
+#endif

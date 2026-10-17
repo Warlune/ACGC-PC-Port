@@ -15,6 +15,7 @@
 
 #ifdef TARGET_PC
 #include "pc_platform.h"
+#include "pc_minimap.h"
 #endif
 
 // this pragma may be unnecessary
@@ -4402,6 +4403,11 @@ void emu64::dl_G_NOOP() {
     switch (noop->tag) {
         case G_TAG_NONE:
 #ifdef TARGET_PC
+            if(this->gfx.words.w1>=PC_MINIMAP_CAPTURE && this->gfx.words.w1<PC_MINIMAP_CAPTURE_END) {
+                pc_minimap_capture_begin(this->gfx.words.w1-PC_MINIMAP_CAPTURE);break;
+            }
+            if(this->gfx.words.w1==PC_MINIMAP_CAPTURE_END) {pc_minimap_capture_end();break;}
+            if(this->gfx.words.w1==PC_MINIMAP_RESET) {pc_minimap_reset();break;}
             /* PC widescreen: skip aspect correction for transitions / bg blits.
              * See pc_platform.h for how the marker/flag mechanism works. */
             if (this->gfx.words.w1 == PC_NOOP_WIDESCREEN_STRETCH) {
@@ -5404,6 +5410,9 @@ void emu64::dl_G_GEOMETRYMODE() {
     }
 
     u32 flags = set | (this->geometry_mode & clear);
+#ifdef TARGET_PC
+    if(g_pc_minimap_capture)flags&=~G_FOG;
+#endif
     if (this->geometry_mode != flags) {
         if ((this->geometry_mode ^ flags) & (G_LIGHTING | G_LIGHTING_POSITIONAL)) {
             this->dirty_flags[EMU64_DIRTY_FLAG_LIGHTING] = true;

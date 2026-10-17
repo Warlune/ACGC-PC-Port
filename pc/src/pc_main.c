@@ -5,6 +5,7 @@
 #include "pc_settings.h"
 #include "pc_dev_east.h"
 #include "pc_graphics.h"
+#include "pc_minimap.h"
 #include "pc_window_menu.h"
 #include "pc_keybindings.h"
 #include "pc_assets.h"
@@ -170,6 +171,7 @@ void pc_platform_update_window_size(void) {
 void pc_platform_swap_buffers(void) {
     pc_gx_draw_pending();
     pc_graphics_present();
+    pc_minimap_present();
     SDL_GL_SwapWindow(g_pc_window);
     pc_window_menu_apply_pending();
     if (texture_compare_toggle_pending) {
