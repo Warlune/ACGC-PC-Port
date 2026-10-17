@@ -210,6 +210,36 @@ static void prepare_symbols(int w,int h,float pixel_scale) {
     }
     symbol_dirty=0;
 }
+static void export_planning_map(void) {
+#ifdef ACO_DEV_EAST
+    static int exported;
+    const char* path=getenv("ACO_MAP_EXPORT");
+    if(!path || exported || !filtered_ready)return;
+    int w=BLOCK_X_NUM*TILE,h=PC_MINIMAP_ROWS*TILE;
+    unsigned char* pixels=malloc(w*h*4);
+    if(!pixels)return;
+    glBindFramebuffer(GL_READ_FRAMEBUFFER,smooth_fbo);
+    glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
+    SDL_Surface* surface=SDL_CreateRGBSurfaceWithFormatFrom(pixels,w,h,32,w*4,SDL_PIXELFORMAT_RGBA32);
+    if(surface) {if(SDL_SaveBMP(surface,path)==0)exported=1;SDL_FreeSurface(surface);}
+    if(exported) {
+        char* labels=malloc(strlen(path)+6);
+        if(labels) {
+            sprintf(labels,"%s.json",path);
+            FILE* f=fopen(labels,"w");
+            if(f) {
+                fprintf(f,"[\n");
+                for(int i=0;i<symbol_count;i++)fprintf(f,"%s{\"x\":%g,\"z\":%g,\"kind\":%d}",
+                    i?",\n":"",map_symbols[i].x,map_symbols[i].z,map_symbols[i].kind);
+                fprintf(f,"\n]\n");fclose(f);
+            }
+            free(labels);
+        }
+    }
+    free(pixels);
+#endif
+}
+
 void pc_minimap_present(void) {
     if(!visible || !ready || !g_pc_settings.minimap || g_pc_settings.minimap_opacity<=0)return;
     GLint old_fbo,old_read_fbo,viewport[4],old_active,old_texture,old_program,old_vao;
@@ -232,7 +262,7 @@ void pc_minimap_present(void) {
     glBindTexture(GL_TEXTURE_2D,color);glUniform1i(atlas_uniform,0);
     float sx=g_pc_window_w/320.0f,sy=g_pc_window_h/240.0f;
     float x=overlay.left*sx,y=overlay.top*sy,w=overlay.width*sx,h=overlay.height*sy;
-    prepare_smooth();prepare_symbols((int)ceilf(w),(int)ceilf(h),sy);
+    prepare_smooth();export_planning_map();prepare_symbols((int)ceilf(w),(int)ceilf(h),sy);
     glBindFramebuffer(GL_FRAMEBUFFER,0);glViewport(0,0,g_pc_window_w,g_pc_window_h);
     glEnable(GL_BLEND);glUniform2f(screen_uniform,g_pc_window_w,g_pc_window_h);
     glBindTexture(GL_TEXTURE_2D,filtered_ready?smooth_color:color);
