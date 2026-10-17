@@ -19,13 +19,22 @@ int pc_minimap_layout(PCMinimapLayout* out, int output_w, int output_h,
                       int size, float acre_x, float acre_z) {
     if (!out || output_w<=0 || output_h<=0 || !isfinite(acre_x) || !isfinite(acre_z) ||
         acre_x<0.0f || acre_x>=BLOCK_X_NUM || acre_z<PC_MAP_NORTH_CROP || acre_z>=PC_MINIMAP_ROWS) return 0;
+    out->view_x=0;out->view_z=PC_MAP_NORTH_CROP;
+    out->view_w=BLOCK_X_NUM;out->view_h=PC_MINIMAP_ROWS-PC_MAP_NORTH_CROP;
+#ifdef ACO_DEV_EAST
+    /* Player HUD is local; full-world terrain remains a development export.
+     * Snap the view to acres so cached landmark badges remain stable. */
+    out->view_w=9;out->view_h=7.25f;
+    out->view_x=fminf(fmaxf(floorf(acre_x)-4,0),BLOCK_X_NUM-out->view_w);
+    out->view_z=fminf(fmaxf(floorf(acre_z)-3,PC_MAP_NORTH_CROP),PC_MINIMAP_ROWS-out->view_h);
+#endif
     if (size<0 || size>2) size=0;
     static const float heights[]={60.0f,78.0f,96.0f};
     /* Stretch coordinates anchor to the real right edge. Counter-scale X
      * so acre squares retain their shape on widescreen outputs. */
     float sx=(4.0f/3.0f)*output_h/output_w;
     out->height=heights[size];
-    out->width=out->height*((float)BLOCK_X_NUM/(PC_MINIMAP_ROWS-PC_MAP_NORTH_CROP))*sx;
+    out->width=out->height*(out->view_w/out->view_h)*sx;
     static const float max_widths[]={110,145,180};
     float limit=fminf(max_widths[size]*sx,320-12*sx);
     if(out->width>limit) {
@@ -34,8 +43,8 @@ int pc_minimap_layout(PCMinimapLayout* out, int output_w, int output_h,
     }
     out->left=320.0f-6.0f*sx-out->width;
     out->top=8.0f;
-    out->marker_x=out->left+acre_x*out->width/BLOCK_X_NUM;
-    out->marker_y=out->top+(acre_z-PC_MAP_NORTH_CROP)*out->height/(PC_MINIMAP_ROWS-PC_MAP_NORTH_CROP);
+    out->marker_x=out->left+(acre_x-out->view_x)*out->width/out->view_w;
+    out->marker_y=out->top+(acre_z-out->view_z)*out->height/out->view_h;
     return 1;
 }
 

@@ -21,7 +21,13 @@ def migrate(source,destination,disc,layout):
     for offset in (start,start+layout['sector_size']):result[offset:offset+len(body)]=body
     destination=Path(destination);destination.parent.mkdir(parents=True,exist_ok=True)
     with destination.open('xb') as f:f.write(result)
-    return dict(source_unchanged=True,connections=routes,bytes=len(result))
+    report=dict(source_unchanged=True,connections=routes,bytes=len(result))
+    if layout.get('town_start',0):
+        import re
+        entries=re.findall(r'\{\s*(BG_TYPE_\w+)\s*,\s*(FG_TYPE_\w+)\s*,\s*(mFM_BLOCK_TYPE_\w+)\s*\}',
+            (here.parents[1]/'src/data/combi/data_combi.c').read_text())
+        report['ocean']=runpy.run_path(str(here/'world-generation.py'))['ocean_destinations'](body,layout,entries)
+    return report
 
 if __name__=='__main__':
     p=argparse.ArgumentParser()

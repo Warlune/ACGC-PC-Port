@@ -1,22 +1,27 @@
 {
-  "feature": "Native terrain minimap and wider enclosed ocean",
+  "feature": "Local player minimap and seeded ocean exploration",
   "normal_build": "passed",
   "expanded_build": "passed",
   "layout_tests": [
     "normal: passed",
-    "31-column OCE2 world: passed"
+    "OCE3 local viewport: passed"
   ],
   "opengl_tests": [
     "normal: passed",
-    "31-column OCE2 world: passed"
+    "OCE3 local terrain/landmark crop: passed"
   ],
-  "visual_check": "Full native 31x16 terrain atlas exported; five extra ocean acres per side; same depth; single saved east island",
+  "visual_check": "Exported native 31x16 atlas: four extra islands with distinct outlines, two attached wall landings, east ferry island retained, no dark coastal-endcap gaps",
   "foreground_actor_meshes": false,
   "default_opacity": 30,
   "rendering": "Two terrain acres per frame during invalidation; one cached smoothing pass; symbol cache refreshed only when anchor data or output dimensions change",
-  "runtime": "Y:/ACO/native-wide-ocean-preview/AnimalCrossing-Wide-Ocean-Dev.exe",
+  "runtime": "Y:/ACO/native-ocean-islands-preview/AnimalCrossing-Islands-Dev.exe",
   "outer_ground": "Native-density 160-unit ground pieces; two acres of visual overscan behind each exterior wall; no collision or playable bounds change",
-  "generator_tests": "60 native seeds: one east port/island, enclosed wider sea, preserved town interiors, indoor templates and idempotence",
-  "ocean_audit": "Passed: 31x18 field; one east port, two-acre saved island, safe foreground/deposit pointers, southern collision",
-  "ferry_validation": "Route coordinates updated; complete interactive journey pending"
+  "generator_tests": "60 native seeds: stable varied placement, four exploration islands, two mountain-wall landings, protected ferry route, connected water, unique saved island and idempotence",
+  "ocean_audit": "passed: 10 exploration acres, two wall landings, dry collision, ferry clearance, safe pointers",
+  "ferry_validation": "Route coordinates updated; complete interactive journey pending",
+  "player_view_acres": [
+    9,
+    7.25
+  ],
+  "full_world_map": "Development export only"
 }

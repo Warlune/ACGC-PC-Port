@@ -3,7 +3,7 @@
 Native combination assets supply the beaches; internal ridges use the PC
 modular cliff mesh and its corresponding heightfield. No coordinate warps.
 """
-import re,struct
+import re,struct,hashlib,random
 from pathlib import Path
 
 def coastal_connections(save,layout,templates,source_root):
@@ -57,14 +57,14 @@ def enclosed_ocean(save,layout,entries):
     The format tag also makes repeated generator passes idempotent.
     """
     width=layout['width'];height=layout['height'];fw=layout['fg_width'];pad=layout.get('town_start',0)
-    tag=b'OCE2' if pad else b'OCE1'
+    tag=b'OCE3' if pad else b'OCE1'
     def find(bg,kind=None):
         return next(i for i,e in enumerate(entries) if e[0]==bg and (kind is None or e[2]==kind))
     def position(x,z):return layout['combi_table']+(z*width+x)*2
     def get(x,z):return struct.unpack_from('>H',save,position(x,z))[0]>>2
     def put(x,z,c):struct.pack_into('>H',save,position(x,z),c<<2)
     ocean=find('BG_TYPE_GRD_S_O_1','mFM_BLOCK_TYPE_OCEAN_8')
-    if save[0x1c:0x20]!=tag:
+    if save[0x1c:0x20] not in (b'OCE1',b'OCE2',b'OCE3'):
         # Preserve authored indoor scene templates before replacing old sea rows.
         old=bytes(save[layout['combi_table']+8*width*2:layout['combi_table']+10*width*2])
         p=layout['combi_table']+(height-2)*width*2
@@ -114,4 +114,48 @@ def enclosed_ocean(save,layout,entries):
             if x<pad or x>pad+20:put(x,6,border)
         put(pad,6,find('BG_TYPE_GRD_S_E2_M_1'))
         put(pad+20,6,find('BG_TYPE_GRD_S_E3_M_1'))
+    if pad: ocean_destinations(save,layout,entries)
     save[0x1c:0x20]=tag
+
+
+def ocean_destinations(save,layout,entries):
+    """Stable native-scale exploration islands, leaving navigable sea lanes.
+
+    Hash only untouched mainland interiors, so reapplying generation cannot
+    move destinations. New combinations keep the canonical island unique.
+    """
+    width=layout['width'];pad=layout.get('town_start',0)
+    if not pad:return dict(seed=None,islands=[],wall_landings=[])
+    def pos(x,z):return layout['combi_table']+(z*width+x)*2
+    core=b''.join(save[pos(x,z):pos(x,z)+2] for z in range(1,6)
+        for region in range(3) for x in range(pad+region*7+1,pad+region*7+6))
+    seed=int.from_bytes(hashlib.blake2s(core,digest_size=4,person=b'ACOsea01').digest(),'big')
+    rng=random.Random(seed)
+    def marker(half,variant):
+        return next(i for i,e in enumerate(entries) if e==
+            (f'BG_TYPE_GRD_S_{half}_{variant}','FG_TYPE_EMPTY','mFM_BLOCK_TYPE_OCEAN_8'))
+    def put(x,z,half,variant):struct.pack_into('>H',save,pos(x,z),marker(half,variant)<<2)
+    # A generous protected route around the authored east ferry waypoints.
+    blocked={(x,z) for z in range(7,15) for x in range(pad+17,pad+22)}
+    occupied=set();landings=[];islands=[]
+    def reserve(cells):
+        for x,z in cells:
+            occupied.update((x+dx,z+dz) for dx in (-1,0,1) for dz in (-1,0,1))
+    for side,x,half in (('west',1,'IR'),('east',width-2,'IL')):
+        z=rng.randint(9,13);v=rng.randint(1,4)
+        put(x,z,half,v);reserve([(x,z)])
+        landings.append(dict(side=side,x=x,z=z,variant=v))
+    candidates=[(x,z) for z in range(8,14) for x in range(3,width-4)]
+    rng.shuffle(candidates)
+    target=4
+    outlines=[(left,right) for left in range(1,5) for right in range(1,5)]
+    rng.shuffle(outlines)
+    for x,z in candidates:
+        cells={(x,z),(x+1,z)}
+        if cells & (blocked|occupied):continue
+        lv,rv=outlines[len(islands)]
+        put(x,z,'IL',lv);put(x+1,z,'IR',rv);reserve(cells)
+        islands.append(dict(x=x,z=z,left_variant=lv,right_variant=rv))
+        if len(islands)==target:break
+    if len(islands)!=target:raise ValueError('Insufficient navigable island spacing')
+    return dict(seed=seed,islands=islands,wall_landings=landings)

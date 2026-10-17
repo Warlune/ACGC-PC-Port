@@ -15,6 +15,7 @@ if __name__=='__main__':
     width=layout['width'];fw=layout['fg_width'];pad=layout.get('town_start',0)
     fg=Disc(args.disc).archive_file('forest_1st.arc','fgdata.bin')
     templates={struct.unpack_from('>H',fg,p)[0]:fg[p+2:p+514] for p in range(0,len(fg),518)}
+    ocean_seeds=set()
     for seed in range(args.seeds):
         town=json.loads(subprocess.check_output([args.generator,str(seed+1234)]))
         body=bytearray(layout['sector_size'])
@@ -46,7 +47,7 @@ if __name__=='__main__':
                 pos=layout['fg']+(5*fw+x-1)*512
                 assert body[pos+32:pos+256]==bytes(224)
         if deep:
-            assert body[0x1c:0x20]==(b'OCE2' if pad else b'OCE1')
+            assert body[0x1c:0x20]==(b'OCE3' if pad else b'OCE1')
             # Inspect actual native combination types, not fixed combo numbers.
             import re
             entries=re.findall(r'\{\s*(BG_TYPE_\w+)\s*,\s*(FG_TYPE_\w+)\s*,\s*(mFM_BLOCK_TYPE_\w+)\s*\}',
@@ -66,6 +67,36 @@ if __name__=='__main__':
                     for unit,item in enumerate(items):
                         if item==0x584f:boats.append((x,z+1,unit))
                         if item==0x5852:signs.append((x,z+1))
+            if pad:
+                generator=runpy.run_path(str(here/'world-generation.py'))['ocean_destinations']
+                report=generator(body,layout,entries);ocean_seeds.add(report['seed'])
+                assert bytes(body)==after and generator(body,layout,entries)==report
+                assert len(report['islands'])==4 and len(report['wall_landings'])==2
+                assert len({(i['left_variant'],i['right_variant']) for i in report['islands']})==4
+                land=set()
+                for island in report['islands']:
+                    cells={(island['x'],island['z']),(island['x']+1,island['z'])}
+                    assert not any((x+dx,z+dz) in land for x,z in cells for dx in (-1,0,1) for dz in (-1,0,1))
+                    land|=cells
+                for shelf in report['wall_landings']:
+                    assert shelf['x'] in (1,width-2)
+                    land.add((shelf['x'],shelf['z']))
+                canonical={(pad+18,12),(pad+19,12)}
+                route={(x,z) for x in range(pad+17,pad+22) for z in range(7,15)}
+                assert not land & route
+                # Every generated destination uses actual native island geometry
+                # and collision without acquiring the unique saved-island role.
+                for x,z in land:
+                    c=struct.unpack_from('>H',body,layout['combi_table']+(z*width+x)*2)[0]>>2
+                    assert entries[c][0].startswith(('BG_TYPE_GRD_S_IL_','BG_TYPE_GRD_S_IR_'))
+                    assert entries[c][1:] == ('FG_TYPE_EMPTY','mFM_BLOCK_TYPE_OCEAN_8')
+                water={(x,z) for x in range(1,width-1) for z in range(7,15)}-land-canonical
+                reached={(pad+19,7)};front=list(reached)
+                while front:
+                    x,z=front.pop()
+                    for q in ((x+1,z),(x-1,z),(x,z+1),(x,z-1)):
+                        if q in water and q not in reached:reached.add(q);front.append(q)
+                assert reached==water,'Disconnected sailing channel'
             assert islands==[(pad+18,12),(pad+19,12)] and ports==[(pad+19,6)]
             assert boats==[(pad+19,6,165)] and signs==[(pad+19,6)]
             for row in range(2):
@@ -75,5 +106,6 @@ if __name__=='__main__':
                     q=layout['combi_table']+((16+row)*width+x)*2
                     if entries[word>>2][0].startswith('BG_TYPE_ROM_'):assert body[q:q+2]==before[p:p+2]
                     else:assert entries[struct.unpack_from('>H',body,q)[0]>>2][2]=='mFM_BLOCK_TYPE_OCEAN_8'
+    if pad and args.seeds>=10:assert len(ocean_seeds)>=10,'World seeds must vary island placement'
     print(f'PASS: {args.seeds} native generator seeds; coast joins; preserved towns; clear shoulders; idempotent rules'+
-          ('; enclosed deep sea; one east port/boat/sign and island; preserved indoor templates' if deep else ''))
+          ('; enclosed sea, unique ferry island, spaced exploration islands/wall landings and connected sailing channels; preserved indoor templates' if deep else ''))

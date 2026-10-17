@@ -13,6 +13,7 @@
 #include "m_private.h"
 #include "m_random_field.h"
 #include "m_rcp.h"
+#include "m_bg_type.h"
 #include "sys_matrix.h"
 #include "graph.h"
 #include "libultra/gu.h"
@@ -197,7 +198,7 @@ void pc_dev_coast_tick(GAME_PLAY* play) {
     if(g_pc_dev_east_spawn>=5) {
         static int audited;
         if(audited || !get_player_actor_withoutCheck(play) || !g_fdinfo)return;
-        int ports=0,islands=0,bad=0;
+        int ports=0,islands=0,exploration=0,wall_landings=0,bad=0;
         if(g_fdinfo->block_x_max!=BLOCK_X_NUM || g_fdinfo->block_z_max!=18)bad|=1;
         for(int z=0;z<18;z++)for(int x=0;x<BLOCK_X_NUM;x++) {
             mFM_block_info_c* block=&g_fdinfo->block_info[z*BLOCK_X_NUM+x];
@@ -214,9 +215,20 @@ void pc_dev_coast_tick(GAME_PLAY* play) {
                 for(int unit=0;unit<256;unit++)if(block->fg_info.items_p &&
                     block->fg_info.items_p[unit]!=EMPTY_NO && block->fg_info.items_p[unit]!=RSV_NO)bad|=64;
             }
+            int bg_id=block->bg_info.bg_id.combination_type;
+            if(type==mFM_BLOCK_TYPE_OCEAN_8 && bg_id>=BG_TYPE_GRD_S_IR_1 && bg_id<=BG_TYPE_GRD_S_IL_4) {
+                int dry=0;exploration++;
+                if(x==1 || x==BLOCK_X_NUM-2)wall_landings++;
+                for(int uz=0;uz<16;uz++)for(int ux=0;ux<16;ux++)
+                    if(block->bg_info.collision[uz][ux].data.center>=4)dry++;
+                if(!dry || z<8 || z>14)bad|=512;
+                if(x>=ACO_TOWN_X0+17 && x<=ACO_TOWN_X0+21)bad|=1024;
+            }
             if(z==15 && x>0 && x<BLOCK_X_NUM-1 && block->bg_info.keep_h[8][8]!=28)bad|=128;
         }
         if(ports!=1 || islands!=2)bad|=256;
+        if(exploration!=10 || wall_landings!=2)bad|=2048;
+        printf("[OceanAudit] Exploration acres=%d wall landings=%d; native dry collision and ferry clearance checked\n",exploration,wall_landings);
         printf("[OceanAudit] %s: 31x18 field; one east port; island=(23,12)-(24,12); safe foreground/deposit pointers; southern collision\n",bad?"FAIL":"PASS");
         if(bad)printf("[OceanAudit] flags=%x ports=%d island_acres=%d field=%dx%d\n",bad,ports,islands,g_fdinfo->block_x_max,g_fdinfo->block_z_max);
         fflush(stdout);audited=1;

@@ -12,6 +12,7 @@ def render_continuous(terrain,symbols,layout,output):
     canvas.paste(terrain.resize((width*scale,rows*scale),Image.Resampling.BICUBIC),(pad,top))
     draw=ImageDraw.Draw(canvas)
     font=lambda size:ImageFont.truetype('C:/Windows/Fonts/segoeui.ttf',size)
+    draw.text((pad,20),'DEV MAP',font=font(22),fill='#b8d4e8')
     for region,name in enumerate(('WEST','CENTER','EAST')):
         draw.text((pad+(layout.get('town_start',0)+region*7)*scale,20),name,font=font(26),fill='#e2eddf')
     glyphs=['H','o','S','P','T','M','!','A','W','B','D','^','L']
@@ -22,8 +23,8 @@ def render_continuous(terrain,symbols,layout,output):
         draw.ellipse((x-r,y-r,x+r,y+r),fill=colors[k],outline='#10252b',width=2)
         text=glyphs[k];box=draw.textbbox((0,0),text,font=font(15))
         draw.text((x-(box[2]-box[0])/2,y-11),text,font=font(15),fill='white')
-    draw.text((pad+(width/2-1)*scale,top+10*scale),'OCEAN',font=font(29),fill='#b8d4e8',stroke_width=1,stroke_fill='#234d8c')
-    draw.text((pad+(layout.get('town_start',0)+17.9)*scale,top+13.2*scale),'ISLAND',font=font(22),fill='#dfebd7',stroke_width=1,stroke_fill='#17437a')
+    draw.text((pad+(width/2-1)*scale,top+7.35*scale),'OCEAN',font=font(29),fill='#b8d4e8',stroke_width=1,stroke_fill='#234d8c')
+    draw.text((pad+(layout.get('town_start',0)+17.9)*scale,top+13.2*scale),'FERRY ISLAND',font=font(22),fill='#dfebd7',stroke_width=1,stroke_fill='#17437a')
     canvas.save(output)
 
 def render(atlas,save,layout,output):

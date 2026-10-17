@@ -17,14 +17,14 @@ int main(void) {
         int w=outputs[i][0],h=outputs[i][1];
         require(pc_minimap_layout(&m,w,h,size,BLOCK_X_NUM/2.0f,(PC_MINIMAP_ROWS+PC_MAP_NORTH_CROP)/2.0f),"valid town position");
         require(m.left>=0&&m.left+m.width<320&&m.top+m.height<240,"map within screen");
-        require(close_to(m.width*w/320/BLOCK_X_NUM,m.height*h/240/(PC_MINIMAP_ROWS-PC_MAP_NORTH_CROP)),"acre squares retain physical aspect");
+        require(close_to(m.width*w/320/m.view_w,m.height*h/240/m.view_h),"acre squares retain physical aspect");
         require(close_to((320-m.left-m.width)*w/320,6.0f*h/240),"constant right-edge margin");
-        require(close_to(m.marker_x,m.left+m.width/2)&&close_to(m.marker_y,m.top+m.height/2),"town center maps to center");
+        require(m.marker_x>=m.left && m.marker_x<=m.left+m.width && m.marker_y>=m.top && m.marker_y<=m.top+m.height,"player remains inside local map");
         pc_minimap_layout(&nw,w,h,size,0,PC_MAP_NORTH_CROP);
         pc_minimap_layout(&se,w,h,size,BLOCK_X_NUM-0.001f,PC_MINIMAP_ROWS-0.001f);
         require(close_to(nw.marker_x,m.left)&&close_to(nw.marker_y,m.top),"northwest town boundary");
-        require(se.marker_x>m.left+m.width*0.99f&&se.marker_y>m.top+m.height*0.99f&&
-                se.marker_x<m.left+m.width&&se.marker_y<m.top+m.height,"southeast town boundary");
+        require(se.marker_x>se.left+se.width*0.99f&&se.marker_y>se.top+se.height*0.99f&&
+                se.marker_x<se.left+se.width&&se.marker_y<se.top+se.height,"southeast town boundary");
     }
     PCMinimapLayout m;
     require(!pc_minimap_layout(&m,640,480,0,BLOCK_X_NUM,1),"reject east border");
@@ -32,13 +32,14 @@ int main(void) {
     require(!pc_minimap_layout(&m,640,480,0,-1,1),"reject non-town position");
     require(!pc_minimap_layout(&m,0,480,0,1,1),"reject unavailable output");
     require(!pc_minimap_layout(&m,640,480,0,NAN,1),"reject non-finite position");
-    require(pc_minimap_layout(&m,640,480,99,1,1)&&close_to(m.height,fminf(60.0f,110.0f*(PC_MINIMAP_ROWS-PC_MAP_NORTH_CROP)/BLOCK_X_NUM)),"invalid size falls back to small");
+    require(pc_minimap_layout(&m,640,480,99,1,1)&&close_to(m.height,fminf(60.0f,110.0f*m.view_h/m.view_w)),"invalid size falls back to small");
     if(BLOCK_X_NUM>7) {
         PCMinimapLayout west,center,east;
         require(pc_minimap_layout(&west,1920,1080,0,3.5f,4),"west region visible");
         require(pc_minimap_layout(&center,1920,1080,0,10.5f,4),"center region visible");
         require(pc_minimap_layout(&east,1920,1080,0,17.5f,4),"east region visible");
-        require(west.marker_x<center.marker_x && center.marker_x<east.marker_x,"all three regions in geographic order");
+        require(west.view_x<center.view_x && center.view_x<east.view_x,"local map follows all three regions");
+        require(west.view_w==9 && west.view_h==7.25f,"player cannot see the full development world");
         require(pc_minimap_layout(&m,1920,1080,0,7,6.2f),"western passage visible");
         require(pc_minimap_layout(&m,1920,1080,0,14,6.2f),"eastern passage visible");
     }
@@ -55,7 +56,8 @@ int main(void) {
 #ifdef ACO_DEV_EAST
     require(PC_MINIMAP_CAPTURE+BLOCK_X_NUM*PC_MINIMAP_ROWS<PC_MINIMAP_CAPTURE_END,"expanded atlas tile tags cannot collide with capture-end tag");
     require(pc_minimap_layout(&m,1920,1080,0,ACO_TOWN_X0+18.5f,12.5f),"offshore east island visible at true coordinates");
-    require(pc_minimap_layout(&m,1920,1080,0,10.5f,14.5f),"deep southern sea visible");
+    require(pc_minimap_layout(&m,1920,1080,0,10.5f,14.5f),"deep southern sea visible locally");
+    require(m.view_z>7 && m.view_x>0 && m.view_w<BLOCK_X_NUM && m.view_h<PC_MINIMAP_ROWS,"southern view remains local");
     require(pc_minimap_symbol_type(COTTAGE_MY)==PC_MAP_HOME,"island cottage symbol");
 #endif
     require(!pc_minimap_layout(&m,640,480,0,3,0.5f),"off-map northern river source cropped");

@@ -51,6 +51,21 @@ int main(void) {
         require(bright>3,"landmark glyph remains bright at 10% terrain opacity in each region");
     }
     pc_minimap_set_symbols(NULL,0);
+    /* A local viewport must not sample either distant world corner. */
+    PCMinimapLayout local=map;
+    local.view_x=2;local.view_z=2;local.view_w=3;local.view_h=3;
+    g_pc_settings.minimap_opacity=100;
+    pc_minimap_set_overlay(&local);pc_minimap_present();pixel(4,476,rgb);
+    require(rgb[0]<250 && rgb[2]<250,"local HUD excludes remote world-corner terrain");
+    /* Changing the viewport must invalidate cached landmark positions. */
+    PCMapSymbol nearby[]={{2.75f,2.75f,PC_MAP_SHOP},{BLOCK_X_NUM-1.5f,2,PC_MAP_STATION}};
+    pc_minimap_set_symbols(nearby,2);pc_minimap_set_overlay(&local);pc_minimap_present();
+    int local_bright=0;
+    for(int y=350;y<370;y++)for(int x=150;x<170;x++) {
+        pixel(x,y,rgb);local_bright+=rgb[0]>215 && rgb[1]>215 && rgb[2]>215;
+    }
+    require(local_bright>3,"local landmark uses local viewport coordinates");
+    pc_minimap_set_symbols(NULL,0);pc_minimap_set_overlay(&map);
     /* A high-frequency ground pattern should become a stable blended color. */
     unsigned char pattern[TILE*TILE*4];
     for(int y=0;y<TILE;y++)for(int x=0;x<TILE;x++) {

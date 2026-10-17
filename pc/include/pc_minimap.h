@@ -10,6 +10,7 @@ extern "C" {
 struct game_play_s;
 typedef struct {
     float left, top, width, height, marker_x, marker_y;
+    float view_x, view_z, view_w, view_h;
 } PCMinimapLayout;
 /* Returns zero for positions outside the town or invalid output dimensions. */
 int pc_minimap_layout(PCMinimapLayout* out, int output_w, int output_h,

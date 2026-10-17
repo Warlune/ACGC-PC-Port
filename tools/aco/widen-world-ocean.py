@@ -64,7 +64,7 @@ def migrate(source,destination,disc,old,new):
     destination.parent.mkdir(parents=True,exist_ok=True)
     with destination.open('xb') as f:f.write(result)
     if source.read_bytes()!=raw:raise ValueError('Source changed during migration')
-    return dict(format='OCE2',source_unchanged=True,field=[31,18],outdoor=[31,16],
+    return dict(format='OCE3',source_unchanged=True,field=[31,18],outdoor=[31,16],
                 extra_ocean_acres_each_side=5,depth_unchanged=True,planting_acres_preserved=114,
                 island=[23,12,2,1],mainland_port=[24,6],connections=routes,
                 bytes=len(result),checksum='passed; mirrored backup')

@@ -471,7 +471,7 @@ static int pc_save_read_gci(const char* path) {
     {
         char format[4];
         fseek(fp,GCI_HEADER_SIZE+GCI_SAVE_MAIN_OFFSET+0x1C,SEEK_SET);
-        if(fread(format,1,4,fp)!=4 || memcmp(format,"OCE2",4)!=0) {
+        if(fread(format,1,4,fp)!=4 || memcmp(format,"OCE3",4)!=0) {
             OSReport("[DevWorld] Ocean-world save migration required; old save left untouched.\n");
             fclose(fp);return FALSE;
         }

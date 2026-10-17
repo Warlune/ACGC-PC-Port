@@ -20,6 +20,7 @@ void pc_minimap_set_symbols(const PCMapSymbol* items,int count) {
         symbol_count=count;symbol_dirty=1;
     }
 }
+static GLint view_uniform;
 static GLint rect_uniform,tint_uniform,textured_uniform,atlas_uniform,screen_uniform;
 static int ready, visible;
 int g_pc_minimap_capture;
@@ -30,7 +31,11 @@ static int saved_wide;
 static GLfloat saved_clear[4];
 
 void pc_minimap_set_overlay(const PCMinimapLayout* layout) {
-    visible=layout!=NULL;if(layout)overlay=*layout;
+    visible=layout!=NULL;if(layout) {
+        if(layout->view_x!=overlay.view_x || layout->view_z!=overlay.view_z ||
+           layout->view_w!=overlay.view_w || layout->view_h!=overlay.view_h)symbol_dirty=1;
+        overlay=*layout;
+    }
 }
 void pc_minimap_reset(void) {ready=filtered_ready=filter_pending=0;symbol_dirty=1;}
 
@@ -96,7 +101,7 @@ static void create_program(void) {
         "gl_Position=vec4(xy.x/screen.x*2-1,1-xy.y/screen.y*2,0,1);}";
     const char* fs=
         "#version 330 core\n"
-        "in vec2 uv;out vec4 outColor;uniform sampler2D atlas;uniform vec4 tint;uniform int textured;\n"
+        "in vec2 uv;out vec4 outColor;uniform sampler2D atlas;uniform vec4 tint;uniform int textured;uniform vec4 mapView;\n"
         "float rect(vec2 p,vec2 a,vec2 b){return step(a.x,p.x)*step(p.x,b.x)*step(a.y,p.y)*step(p.y,b.y);}\n"
         "float line(vec2 p,vec2 a,vec2 b,float w){vec2 d=b-a;float t=clamp(dot(p-a,d)/dot(d,d),0,1);return 1-smoothstep(w,w+0.02,length(p-a-t*d));}\n"
         "float ring(vec2 p,vec2 c,float r,float w){return 1-smoothstep(w,w+0.02,abs(length(p-c)-r));}\n"
@@ -118,7 +123,7 @@ static void create_program(void) {
         "else if(kind==12){a=max(rect(p,vec2(.38,.29),vec2(.62,.76)),rect(p,vec2(.28,.24),vec2(.72,.36)));a=max(a,max(line(p,vec2(.2,.24),vec2(.07,.18),.025),line(p,vec2(.8,.24),vec2(.93,.18),.025)));}\n"
         "return clamp(a,0,1);}\n"
         "void main(){if(textured==0){outColor=tint;return;}\n"
-        "if(textured==1){vec4 c=texture(atlas,vec2(uv.x,uv.y*(1.0-48.0/float(textureSize(atlas,0).y))));outColor=vec4(c.rgb,c.a*tint.a);return;}\n"
+        "if(textured==1){vec4 c=texture(atlas,(mapView.xy+uv*mapView.zw));outColor=vec4(c.rgb,c.a*tint.a);return;}\n"
         "if(textured==2){outColor=vec4(soften(uv),1);return;}\n"
         "if(textured==3){vec4 c=texture(atlas,uv);outColor=vec4(c.rgb,c.a*tint.a);return;}\n"
         "vec2 p=vec2(uv.x,1-uv.y);float d=length(p-vec2(.5));float coverage=1-smoothstep(.46,.49,d);if(coverage<=0)discard;\n"
@@ -126,6 +131,7 @@ static void create_program(void) {
     ;
     GLuint v=shader(GL_VERTEX_SHADER,vs),f=shader(GL_FRAGMENT_SHADER,fs);
     program=glCreateProgram();glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);
+    view_uniform=glGetUniformLocation(program,"mapView");
     rect_uniform=glGetUniformLocation(program,"rect");
     tint_uniform=glGetUniformLocation(program,"tint");
     textured_uniform=glGetUniformLocation(program,"textured");
@@ -177,10 +183,12 @@ static void prepare_symbols(int w,int h,float pixel_scale) {
         PCMapSymbol s=map_symbols[i];
         if(s.kind<0 || s.kind>=PC_MAP_SYMBOL_TYPES)continue;
         if((s.kind>=PC_MAP_SHOP?0:s.kind==PC_MAP_HOME?1:2)!=pass)continue;
-        if(s.z<PC_MAP_NORTH_CROP || s.z>=PC_MINIMAP_ROWS || s.x<0 || s.x>=BLOCK_X_NUM)continue;
+        float vx=overlay.view_w>0?overlay.view_x:0,vz=overlay.view_h>0?overlay.view_z:PC_MAP_NORTH_CROP;
+        float vw=overlay.view_w>0?overlay.view_w:BLOCK_X_NUM,vh=overlay.view_h>0?overlay.view_h:PC_MINIMAP_ROWS-PC_MAP_NORTH_CROP;
+        if(s.z<vz || s.z>=vz+vh || s.x<vx || s.x>=vx+vw)continue;
         float size=fminf(fmaxf(pixel_scale*3.4f,12),22);
         if(s.kind==PC_MAP_VILLAGER)size*=0.78f;
-        float ax=s.x/BLOCK_X_NUM*w,ay=(s.z-PC_MAP_NORTH_CROP)/(PC_MINIMAP_ROWS-PC_MAP_NORTH_CROP)*h;
+        float ax=(s.x-vx)/vw*w,ay=(s.z-vz)/vh*h;
         float best=1e30f,bx=ax,by=ay;
         for(int candidate=0;candidate<(int)(sizeof(offsets)/sizeof(offsets[0]));candidate++) {
             float cx=fminf(fmaxf(ax+offsets[candidate][0]*(size+2),size/2),w-size/2);
@@ -268,10 +276,13 @@ void pc_minimap_present(void) {
     glBindTexture(GL_TEXTURE_2D,filtered_ready?smooth_color:color);
     float a=fminf(g_pc_settings.minimap_opacity,100)/100.0f;
     quad(x-2*sy,y-2*sy,w+4*sy,h+4*sy,0,0.03f,0.05f,0.06f,a);
+    float vx=overlay.view_w>0?overlay.view_x:0,vz=overlay.view_h>0?overlay.view_z:PC_MAP_NORTH_CROP;
+    float vw=overlay.view_w>0?overlay.view_w:BLOCK_X_NUM,vh=overlay.view_h>0?overlay.view_h:PC_MINIMAP_ROWS-PC_MAP_NORTH_CROP;
+    glUniform4f(view_uniform,vx/BLOCK_X_NUM,1-(vz+vh)/PC_MINIMAP_ROWS,vw/BLOCK_X_NUM,vh/PC_MINIMAP_ROWS);
     quad(x,y,w,h,1,1,1,1,a);
     /* Town boundaries aid orientation without replacing any terrain. */
     if(BLOCK_X_NUM>7)for(int col=ACO_TOWN_X0+7;col<ACO_TOWN_X0+21;col+=7)
-        quad(x+w*col/BLOCK_X_NUM,y,sy*0.35f,h,0,1,1,1,a*0.35f);
+        if(col>vx && col<vx+vw)quad(x+w*(col-vx)/vw,y,sy*0.35f,h,0,1,1,1,a*0.35f);
     /* Symbols stay legible while the terrain remains faint. Fully transparent
      * or disabled maps still hide everything through the guard above. */
     glBindTexture(GL_TEXTURE_2D,symbol_color);

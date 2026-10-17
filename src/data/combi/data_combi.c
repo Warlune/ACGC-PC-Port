@@ -372,6 +372,18 @@ mFM_combo_info_c data_combi_table[] = {
     { BG_TYPE_GRD_S_O_WF_2, FG_TYPE_EMPTY, mFM_BLOCK_TYPE_OCEAN_8 },
     { BG_TYPE_GRD_S_O_WF_3, FG_TYPE_EMPTY, mFM_BLOCK_TYPE_OCEAN_8 },
     { BG_TYPE_ROM_TENT, FG_TYPE_ROM_TENT, mFM_BLOCK_TYPE_NONE },
+#ifdef ACO_DEV_EAST
+    /* Exploration terrain has native island collision, but no canonical
+     * island role or foreground pointers into the single saved boat island. */
+    { BG_TYPE_GRD_S_IL_1, FG_TYPE_EMPTY, mFM_BLOCK_TYPE_OCEAN_8 },
+    { BG_TYPE_GRD_S_IL_2, FG_TYPE_EMPTY, mFM_BLOCK_TYPE_OCEAN_8 },
+    { BG_TYPE_GRD_S_IL_3, FG_TYPE_EMPTY, mFM_BLOCK_TYPE_OCEAN_8 },
+    { BG_TYPE_GRD_S_IL_4, FG_TYPE_EMPTY, mFM_BLOCK_TYPE_OCEAN_8 },
+    { BG_TYPE_GRD_S_IR_1, FG_TYPE_EMPTY, mFM_BLOCK_TYPE_OCEAN_8 },
+    { BG_TYPE_GRD_S_IR_2, FG_TYPE_EMPTY, mFM_BLOCK_TYPE_OCEAN_8 },
+    { BG_TYPE_GRD_S_IR_3, FG_TYPE_EMPTY, mFM_BLOCK_TYPE_OCEAN_8 },
+    { BG_TYPE_GRD_S_IR_4, FG_TYPE_EMPTY, mFM_BLOCK_TYPE_OCEAN_8 },
+#endif
 };
 
 int data_combi_table_number = ARRAY_COUNT(data_combi_table);
