@@ -1,0 +1,36 @@
+{
+  "stage": "shared-map host prototype; no native gameplay integration",
+  "source_commit": "88c97f702e5f06d73438d2ff81bea5a9bac26928",
+  "ci_url": "https://github.com/Warlune/ACGC-PC-Port/actions/runs/39056045931",
+  "ci_conclusion": "success",
+  "test_cases_per_environment": 11,
+  "ci_environments": [
+    "Windows Python 3.11",
+    "Windows Python 3.12",
+    "Windows Python 3.13",
+    "Ubuntu Linux Python 3.11",
+    "Ubuntu Linux Python 3.12",
+    "Ubuntu Linux Python 3.13",
+    "Linux container Python 3.12"
+  ],
+  "local_windows_tests": "passed",
+  "portable_archive": "host/build/aco-host.pyz (generated locally, requires Python)",
+  "local_archive_sha256": "FB26731F278941F04738774EFC12DECDF44E0350931417020A5FB76C59F85F96",
+  "coverage": [
+    "Separate authenticated client identities and shared edits",
+    "Same-tile write conflicts and independent concurrent edits",
+    "Concurrent duplicate-command replay exactly once",
+    "Consistent snapshots and paginated reconnect events",
+    "Input validation and absent/invalid credentials",
+    "Injected storage failure rolls back edit, revision, event and receipt",
+    "Hard host-process restart retains acknowledged changes and receipts",
+    "Packaged archive runs outside the source checkout"
+  ],
+  "limitations": [
+    "Blank synthetic foreground map, not a generated/imported Animal Crossing town",
+    "Native game clients, movement, independent actors and inventories are not connected",
+    "QNAP architecture and deployment are not verified",
+    "No long-running deployment, backup, retention or credential administration validation"
+  ],
+  "running_game_window": "No UI input, activation, resizing, termination or game runtime changes performed during host work"
+}
