@@ -3,6 +3,7 @@
 #include "pc_texture_pack.h"
 #include "pc_profiler.h"
 #include "pc_settings.h"
+#include "pc_graphics.h"
 #include <dolphin/gx/GXEnum.h>
 #include <stdlib.h>
 
@@ -31,10 +32,12 @@ typedef struct {
     u32 tlut_hash;   /* FNV-1a of TLUT data + metadata */
     u32 data_hash;   /* FNV-1a of first N bytes */
     GLuint gl_tex;
+    GLuint hd_tex;       /* pack-owned; original gl_tex is always retained */
+    GLuint all_tex;      /* cache-owned runtime 4x fallback */
     u32 wrap_s;
     u32 wrap_t;
     u32 min_filter;
-    u8 external;     /* owned by texture pack, don't delete on eviction */
+    int anisotropy;
 } TexCacheEntry;
 
 /* Bits-per-pixel for each GC texture format (8 for unknown as safe default) */
@@ -122,11 +125,13 @@ static TexCacheEntry* tex_cache_insert(u32 data_ptr, int w, int h, u32 fmt, u32 
         for (int i = 0; i < half; i++) {
             if (tex_cache[i].gl_tex) {
                 for (int s = 0; s < 8; s++) {
-                    if (g_gx.gl_textures[s] == tex_cache[i].gl_tex)
+                    if (g_gx.gl_textures[s] == tex_cache[i].gl_tex ||
+                        (tex_cache[i].hd_tex && g_gx.gl_textures[s] == tex_cache[i].hd_tex) ||
+                        (tex_cache[i].all_tex && g_gx.gl_textures[s] == tex_cache[i].all_tex))
                         g_gx.gl_textures[s] = 0;
                 }
-                if (!tex_cache[i].external)
-                    glDeleteTextures(1, &tex_cache[i].gl_tex);
+                glDeleteTextures(1, &tex_cache[i].gl_tex);
+                if (tex_cache[i].all_tex) glDeleteTextures(1, &tex_cache[i].all_tex);
             }
         }
         memmove(&tex_cache[0], &tex_cache[half], (tex_cache_count - half) * sizeof(TexCacheEntry));
@@ -142,18 +147,21 @@ static TexCacheEntry* tex_cache_insert(u32 data_ptr, int w, int h, u32 fmt, u32 
     e->tlut_hash = tlut_hash;
     e->data_hash = data_hash;
     e->gl_tex = gl_tex;
+    e->hd_tex = 0;
+    e->all_tex = 0;
     e->wrap_s = 0xFFFFFFFF;
     e->wrap_t = 0xFFFFFFFF;
     e->min_filter = 0xFFFFFFFF;
-    e->external = 0;
+    e->anisotropy = 0;
     return e;
 }
 
 void pc_gx_texture_cache_invalidate(void) {
     for (int i = 0; i < tex_cache_count; i++) {
-        if (tex_cache[i].gl_tex && !tex_cache[i].external) {
+        if (tex_cache[i].gl_tex) {
             glDeleteTextures(1, &tex_cache[i].gl_tex);
         }
+        if (tex_cache[i].all_tex) glDeleteTextures(1, &tex_cache[i].all_tex);
     }
     tex_cache_count = 0;
 }
@@ -168,6 +176,86 @@ void pc_gx_texture_init(void) {
 void pc_gx_texture_shutdown(void) {
     pc_gx_texture_cache_invalidate();
     memset(g_gx.gl_textures, 0, sizeof(g_gx.gl_textures));
+}
+
+/* Scale2x twice: exact RGBA comparisons preserve alpha and palette boundaries.
+ * Address neighbours using the game's actual wrap modes, including mirrors. */
+static int upscale_address(int p, int n, u32 wrap) {
+    if (wrap == 0) return p < 0 ? 0 : p >= n ? n-1 : p;
+    int period = wrap == 2 ? n*2 : n;
+    p = (p % period + period) % period;
+    return p >= n ? period-1-p : p;
+}
+static u32* upscale_2x(const u32* src, int w, int h, u32 ws, u32 wt) {
+    u32* dst = (u32*)malloc((size_t)w*h*4*sizeof(u32));
+    if (!dst) return NULL;
+    for (int y=0; y<h; y++) for (int x=0; x<w; x++) {
+        u32 e=src[y*w+x], b=src[upscale_address(y-1,h,wt)*w+x];
+        u32 d=src[y*w+upscale_address(x-1,w,ws)];
+        u32 f=src[y*w+upscale_address(x+1,w,ws)];
+        u32 h0=src[upscale_address(y+1,h,wt)*w+x];
+        int i=(y*2)*(w*2)+x*2;
+        dst[i] = d==b && b!=f && d!=h0 ? d : e;
+        dst[i+1] = b==f && b!=d && f!=h0 ? f : e;
+        dst[i+w*2] = d==h0 && d!=b && h0!=f ? d : e;
+        dst[i+w*2+1] = h0==f && d!=h0 && b!=f ? f : e;
+    }
+    return dst;
+}
+static GLuint texture_select(TexCacheEntry* e) {
+    int mode=g_pc_settings.texture_replacements;
+    if (!mode) return e->gl_tex;
+    if (e->hd_tex) return e->hd_tex;
+    if (mode != 2) return e->gl_tex;
+    if (!e->all_tex) {
+        int w=e->width, h=e->height;
+        if (w<=0 || h<=0 || w>1024 || h>1024) return e->gl_tex;
+        u32* source=(u32*)malloc((size_t)w*h*sizeof(u32));
+        if (!source) return e->gl_tex;
+        glBindTexture(GL_TEXTURE_2D,e->gl_tex);
+        glGetTexImage(GL_TEXTURE_2D,0,GL_RGBA,GL_UNSIGNED_BYTE,source);
+        u32* twice=upscale_2x(source,w,h,e->wrap_s,e->wrap_t);
+        free(source);
+        if (!twice) return e->gl_tex;
+        u32* four=upscale_2x(twice,w*2,h*2,e->wrap_s,e->wrap_t);
+        free(twice);
+        if (!four) return e->gl_tex;
+        glGenTextures(1,&e->all_tex);
+        glBindTexture(GL_TEXTURE_2D,e->all_tex);
+        glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,w*4,h*4,0,GL_RGBA,GL_UNSIGNED_BYTE,four);
+        free(four);
+        pc_graphics_texture_sampler();
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,e->wrap_s==2 ? GL_MIRRORED_REPEAT : e->wrap_s==0 ? GL_CLAMP_TO_EDGE : GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,e->wrap_t==2 ? GL_MIRRORED_REPEAT : e->wrap_t==0 ? GL_CLAMP_TO_EDGE : GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,e->min_filter ? GL_LINEAR : GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,e->min_filter ? GL_LINEAR : GL_NEAREST);
+        pc_gx_texture_bind_cache_invalidate();
+    }
+    return e->all_tex;
+}
+
+/* Run between frames or before applying settings. Retain all resident variants. */
+void pc_gx_texture_set_replacements(int enabled) {
+    if (enabled<0 || enabled>2) enabled=0;
+    pc_gx_draw_pending();
+    g_pc_settings.texture_replacements = enabled;
+    for (int slot=0; slot<8; slot++) {
+        GLuint bound = g_gx.gl_textures[slot];
+        if (!bound) continue;
+        for (int i=0; i<tex_cache_count; i++) {
+            TexCacheEntry* e=&tex_cache[i];
+            if (bound==e->gl_tex || (e->hd_tex && bound==e->hd_tex) || (e->all_tex && bound==e->all_tex)) {
+                g_gx.gl_textures[slot] = texture_select(e);
+                break;
+            }
+        }
+    }
+    DIRTY(PC_GX_DIRTY_TEXTURES);
+    pc_gx_texture_bind_cache_invalidate();
+    if (g_pc_window) SDL_SetWindowTitle(g_pc_window, enabled==2 ? "Animal Crossing [Textures: EVERYTHING 4X]" : enabled ?
+        "Animal Crossing [Textures: PACK]" : "Animal Crossing [Textures: ORIGINAL]");
+    printf("[TextureCompare] %s; %d original/pack cache entries retained\n",
+        enabled==2 ? "EVERYTHING 4X" : enabled ? "PACK" : "ORIGINAL",tex_cache_count);
 }
 
 /* --- texture object API --- */
@@ -655,36 +743,33 @@ static void pc_gx_load_tex_obj_impl(void* obj, u32 id) {
                                            tlut_ptr_key, tlut_hash_key, hash);
     if (cached) {
         tex_cache_hits++;
-        GLuint tex = cached->gl_tex;
+        GLuint tex = texture_select(cached);
         int slot_changed = g_gx.gl_textures[id] != tex ||
             g_gx.tex_obj_w[id] != width ||
             g_gx.tex_obj_h[id] != height ||
             g_gx.tex_obj_fmt[id] != (int)format;
         int params_changed = cached->wrap_s != wrap_s || cached->wrap_t != wrap_t ||
-            cached->min_filter != filter_mode;
+            cached->min_filter != filter_mode || cached->anisotropy != pc_graphics_anisotropy();
 
-        /* update wrap/filter if changed */
+        /* Keep both resident variants on identical sampler settings so A/B
+         * changes only the texture art. */
         if (params_changed) {
             pc_gx_draw_pending();
-            glBindTexture(GL_TEXTURE_2D, tex);
-            pc_profiler_add_count_texture_bind();
+            GLuint variants[3] = {cached->gl_tex, cached->hd_tex, cached->all_tex};
+            for (int v=0; v<3; v++) {
+                if (!variants[v]) continue;
+                glBindTexture(GL_TEXTURE_2D, variants[v]);
+                pc_graphics_texture_sampler();
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap_s==2 ? GL_MIRRORED_REPEAT : wrap_s==0 ? GL_CLAMP_TO_EDGE : GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap_t==2 ? GL_MIRRORED_REPEAT : wrap_t==0 ? GL_CLAMP_TO_EDGE : GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter_mode ? GL_LINEAR : GL_NEAREST);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter_mode ? GL_LINEAR : GL_NEAREST);
+                pc_profiler_add_count_texture_bind();
+            }
+            cached->wrap_s=wrap_s; cached->wrap_t=wrap_t;
+            cached->min_filter=filter_mode;
+            cached->anisotropy=pc_graphics_anisotropy();
             pc_gx_texture_bind_cache_invalidate();
-        }
-        if (cached->wrap_s != wrap_s || cached->wrap_t != wrap_t) {
-            GLenum gl_ws = (wrap_s == 2) ? GL_MIRRORED_REPEAT :
-                           (wrap_s == 0) ? GL_CLAMP_TO_EDGE : GL_REPEAT;
-            GLenum gl_wt = (wrap_t == 2) ? GL_MIRRORED_REPEAT :
-                           (wrap_t == 0) ? GL_CLAMP_TO_EDGE : GL_REPEAT;
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, gl_ws);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, gl_wt);
-            cached->wrap_s = wrap_s;
-            cached->wrap_t = wrap_t;
-        }
-        if (cached->min_filter != filter_mode) {
-            GLenum gl_filter = filter_mode ? GL_LINEAR : GL_NEAREST;
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter);
-            cached->min_filter = filter_mode;
         }
 
         o[TEXOBJ_GL_TEX] = tex;
@@ -700,7 +785,8 @@ static void pc_gx_load_tex_obj_impl(void* obj, u32 id) {
     tex_cache_misses++;
     pc_gx_draw_pending();
 
-    /* try texture pack replacement before decoding */
+    /* Resolve the replacement, but always decode and retain the original. */
+    GLuint hd_tex = 0;
     if (pc_texture_pack_active()) {
         const void* tp_tlut = NULL;
         int tp_tlut_entries = 0;
@@ -715,46 +801,16 @@ static void pc_gx_load_tex_obj_impl(void* obj, u32 id) {
         }
         int data_size = (width * height * gc_format_bpp(format)) / 8;
         int hd_w = 0, hd_h = 0;
-        GLuint hd_tex = pc_texture_pack_lookup(image_ptr, data_size,
+        hd_tex = pc_texture_pack_lookup(image_ptr, data_size,
                                                width, height, format,
                                                tp_tlut, tp_tlut_entries, tp_tlut_is_be,
                                                &hd_w, &hd_h);
-        if (hd_tex) {
-            glBindTexture(GL_TEXTURE_2D, hd_tex);
-            pc_profiler_add_count_texture_bind();
-            pc_gx_texture_bind_cache_invalidate();
-            GLenum gl_ws = (wrap_s == 2) ? GL_MIRRORED_REPEAT :
-                           (wrap_s == 0) ? GL_CLAMP_TO_EDGE : GL_REPEAT;
-            GLenum gl_wt = (wrap_t == 2) ? GL_MIRRORED_REPEAT :
-                           (wrap_t == 0) ? GL_CLAMP_TO_EDGE : GL_REPEAT;
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, gl_ws);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, gl_wt);
-            {
-                GLenum gl_filter = filter_mode ? GL_LINEAR : GL_NEAREST;
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter);
-            }
-
-            TexCacheEntry* entry = tex_cache_insert(o[TEXOBJ_IMAGE_PTR], width, height, format,
-                                                    tlut_key, tlut_ptr_key, tlut_hash_key, hash, hd_tex);
-            entry->wrap_s = wrap_s;
-            entry->wrap_t = wrap_t;
-            entry->min_filter = filter_mode;
-            entry->external = 1;
-
-            o[TEXOBJ_GL_TEX] = hd_tex;
-            g_gx.gl_textures[id] = hd_tex;
-            g_gx.tex_obj_w[id] = width;
-            g_gx.tex_obj_h[id] = height;
-            g_gx.tex_obj_fmt[id] = (int)format;
-            DIRTY(PC_GX_DIRTY_TEXTURES);
-            return;
-        }
     }
 
     GLuint tex;
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
+    pc_graphics_texture_sampler();
     pc_profiler_add_count_texture_bind();
     pc_gx_texture_bind_cache_invalidate();
 
@@ -812,7 +868,21 @@ static void pc_gx_load_tex_obj_impl(void* obj, u32 id) {
     entry->wrap_s = wrap_s;
     entry->wrap_t = wrap_t;
     entry->min_filter = filter_mode;
+    entry->anisotropy = pc_graphics_anisotropy();
+    entry->hd_tex = hd_tex;
+    if (hd_tex) {
+        glBindTexture(GL_TEXTURE_2D, hd_tex);
+        pc_graphics_texture_sampler();
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap_s==2 ? GL_MIRRORED_REPEAT : wrap_s==0 ? GL_CLAMP_TO_EDGE : GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap_t==2 ? GL_MIRRORED_REPEAT : wrap_t==0 ? GL_CLAMP_TO_EDGE : GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter_mode ? GL_LINEAR : GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter_mode ? GL_LINEAR : GL_NEAREST);
+        pc_profiler_add_count_texture_bind();
+        pc_gx_texture_bind_cache_invalidate();
+        if (g_pc_settings.texture_replacements) tex = hd_tex;
+    }
 
+    tex = texture_select(entry);
     o[TEXOBJ_GL_TEX] = tex;
     g_gx.gl_textures[id] = tex;
     g_gx.tex_obj_w[id] = width;

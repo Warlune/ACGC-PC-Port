@@ -1,5 +1,17 @@
 # Animal Crossing PC Port
 
+## ACO development fork
+
+This fork extends [FlyingMeta's native PC port](https://github.com/flyngmt/ACGC-PC-Port), starting from `v0.9.3-playtest` (`4099d246c927e75b4fd342ca13f4ac4395c55af5`). Our development branch is `aco-native`. The original author credits and license notices are preserved.
+
+Current additions include a native Windows File / Graphics / View / Help menu, live MSAA and render scaling, spatial scaling filters, FXAA, sharpening, anisotropic filtering, and an in-game Image settings tab. OpenGL remains supported.
+
+F6 cycles **Original → Current pack → Everything 4x**. Graphics → Texture source selects each mode directly. Everything mode uses installed replacements and generates runtime Scale2x fallbacks for other decoded textures, including characters, fonts, menus and changing palettes. The runtime fallback is filtered scaling, not AI reconstruction. Texture packs and game assets are not included in this repository.
+
+**Not implemented:** online co-op, a persistent NAS server, DLSS/DLAA or an additional graphics backend. These remain development targets. Existing AI texture seams still need refinement. See [ACO development notes](docs/aco/README.md) for validation and plans.
+
+Build this fork from source using the instructions below or `Build Native.cmd` with a local MINGW32 toolchain. The prebuilt release links below refer to the upstream project, not these additions.
+
 A native PC port of Animal Crossing (GameCube) built on top of the [ac-decomp](https://github.com/ACreTeam/ac-decomp) decompilation project.
 
 The game's original C code runs natively on x86, with a custom translation layer replacing the GameCube's GX graphics API with OpenGL 3.3.

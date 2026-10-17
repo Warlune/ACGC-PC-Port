@@ -267,6 +267,8 @@ list(FILTER GAME_CXX_SOURCES EXCLUDE REGEX ".*/jsyswrapper_main\\.cpp$")
 # =============================================================================
 set(PC_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_main.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_graphics.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_window_menu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_gx.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_gx_tev.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_gx_texture.c
@@ -425,7 +427,7 @@ else()
 endif()
 
 if(WIN32)
-    target_link_libraries(ac_pc opengl32 winmm imm32 version setupapi)
+    target_link_libraries(ac_pc opengl32 winmm imm32 version setupapi shell32)
 else()
     find_package(OpenGL REQUIRED)
     target_link_libraries(ac_pc OpenGL::GL dl pthread m)
@@ -488,6 +490,36 @@ endif()
 # =============================================================================
 # Install rules (cmake --install . --prefix <dest>)
 # =============================================================================
+add_executable(graphics_smoke EXCLUDE_FROM_ALL
+    tests/graphics_smoke.c src/pc_graphics.c)
+if(TARGET SDL2::SDL2)
+    target_link_libraries(graphics_smoke glad SDL2::SDL2)
+else()
+    target_link_libraries(graphics_smoke glad ${SDL2_LIBRARIES})
+endif()
+if(WIN32)
+    target_link_libraries(graphics_smoke opengl32)
+else()
+    target_link_libraries(graphics_smoke OpenGL::GL m)
+endif()
+if(MINGW)
+    target_link_options(graphics_smoke PRIVATE -static-libgcc)
+endif()
+set_target_properties(graphics_smoke PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+
+add_executable(texture_compare_smoke EXCLUDE_FROM_ALL tests/texture_compare_smoke.c)
+if(TARGET SDL2::SDL2)
+    target_link_libraries(texture_compare_smoke glad SDL2::SDL2)
+else()
+    target_link_libraries(texture_compare_smoke glad ${SDL2_LIBRARIES})
+endif()
+if(MINGW)
+    target_link_options(texture_compare_smoke PRIVATE -static-libgcc)
+endif()
+set_target_properties(texture_compare_smoke PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+
 install(TARGETS ac_pc RUNTIME DESTINATION bin)
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/shaders/"
     DESTINATION bin/shaders

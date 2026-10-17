@@ -1,6 +1,8 @@
 /* pc_settings.c - runtime settings loaded from settings.ini */
 #include "pc_settings.h"
 #include "pc_platform.h"
+#include "pc_window_menu.h"
+#include "pc_texture_pack.h"
 #include "m_player_lib.h"
 #include "ac_birth_control.h"
 
@@ -11,6 +13,13 @@ PCSettings g_pc_settings = {
     .vsync         = 0,
     .max_fps       = 60,
     .msaa          = 4,
+    .render_scale  = 100,
+    .upscale_filter = 1,
+    .fxaa = 0,
+    .sharpness = 0,
+    .show_fps = 1,
+    .anisotropy = 1,
+    .texture_replacements = 1,
     .texture_filtering = 1,
     .preload_textures = 0,
     .disable_resetti = 0,
@@ -41,6 +50,13 @@ static const char* DEFAULT_SETTINGS =
     "\n"
     "# Anti-aliasing samples: 0 = off, 2, 4, or 8\n"
     "msaa = 4\n"
+    "render_scale = 100\n"
+    "upscale_filter = 1\n"
+    "fxaa = 0\n"
+    "sharpness = 0\n"
+    "show_fps = 1\n"
+    "anisotropy = 1\n"
+    "texture_replacements = 1\n"
     "\n"
     "# Texture filtering: 0 = nearest-neighbor, 1 = use the game's filtering\n"
     "texture_filtering = 1\n"
@@ -102,6 +118,20 @@ static void apply_setting(const char* key, const char* value) {
     } else if (strcmp(key, "msaa") == 0) {
         if (val == 0 || val == 2 || val == 4 || val == 8)
             g_pc_settings.msaa = val;
+    } else if (strcmp(key, "render_scale") == 0) {
+        if (val >= 50 && val <= 200) g_pc_settings.render_scale = val;
+    } else if (strcmp(key, "upscale_filter") == 0) {
+        if (val >= 0 && val <= 2) g_pc_settings.upscale_filter = val;
+    } else if (strcmp(key, "fxaa") == 0) {
+        if (val == 0 || val == 1) g_pc_settings.fxaa = val;
+    } else if (strcmp(key, "sharpness") == 0) {
+        if (val >= 0 && val <= 100) g_pc_settings.sharpness = val;
+    } else if (strcmp(key, "show_fps") == 0) {
+        if (val == 0 || val == 1) g_pc_settings.show_fps = val;
+    } else if (strcmp(key, "anisotropy") == 0) {
+        if (val == 1 || val == 2 || val == 4 || val == 8 || val == 16) g_pc_settings.anisotropy = val;
+    } else if (strcmp(key, "texture_replacements") == 0) {
+        if (val >= 0 && val <= 2) g_pc_settings.texture_replacements = val;
     } else if (strcmp(key, "texture_filtering") == 0) {
         if (val == 0 || val == 1) g_pc_settings.texture_filtering = val;
     } else if (strcmp(key, "preload_textures") == 0) {
@@ -179,6 +209,16 @@ void pc_settings_save(void) {
     fprintf(f, "\n");
     fprintf(f, "# Anti-aliasing samples: 0 = off, 2, 4, or 8\n");
     fprintf(f, "msaa = %d\n", g_pc_settings.msaa);
+    fprintf(f, "# Render scale: 50..200 percent. Above 100 supersamples.\n");
+    fprintf(f, "render_scale = %d\n", g_pc_settings.render_scale);
+    fprintf(f, "# Spatial filter: 0=nearest, 1=bilinear, 2=bicubic (not DLSS)\n");
+    fprintf(f, "upscale_filter = %d\n", g_pc_settings.upscale_filter);
+    fprintf(f, "fxaa = %d\n", g_pc_settings.fxaa);
+    fprintf(f, "sharpness = %d\n", g_pc_settings.sharpness);
+    fprintf(f, "show_fps = %d\n", g_pc_settings.show_fps);
+    fprintf(f, "anisotropy = %d\n", g_pc_settings.anisotropy);
+    fprintf(f, "# F6 cycles 0=original, 1=pack, 2=everything 4x (pack + runtime filter)\n");
+    fprintf(f, "texture_replacements = %d\n", g_pc_settings.texture_replacements);
     fprintf(f, "\n");
     fprintf(f, "# Texture filtering: 0 = nearest-neighbor, 1 = use the game's filtering\n");
     fprintf(f, "texture_filtering = %d\n", g_pc_settings.texture_filtering);
@@ -304,6 +344,7 @@ void pc_settings_cycle_resolution(int* width, int* height, int dir) {
 }
 
 void pc_settings_apply(void) {
+    pc_gx_texture_set_replacements(g_pc_settings.texture_replacements);
     apply_frame_limit_setting();
     apply_borderless_acres_setting();
 
@@ -351,6 +392,7 @@ void pc_settings_apply(void) {
 
     SDL_GL_SetSwapInterval(g_pc_settings.vsync);
     pc_platform_update_window_size();
+    pc_window_menu_refresh();
 
     printf("[Settings] Applied: %dx%d fullscreen=%d vsync=%d max_fps=%d msaa=%d\n",
            g_pc_settings.window_width, g_pc_settings.window_height,

@@ -1,0 +1,20 @@
+{
+  "executable": "native-runtime/AnimalCrossing-ACO.exe",
+  "sha256": "8FA33BFD4E4759F7764D607AADA6FB54EFDF4A3DE68F94D3FD6077D43885A2E9",
+  "modes": [
+    "Original",
+    "Current pack",
+    "Everything 4x"
+  ],
+  "everything_method": "Existing AI/filtered pack plus two-pass Scale2x for unmatched decoded RGBA textures; not additional AI reconstruction",
+  "integration_test": "Passed three modes, warm cache, sampler parity, alpha, addressing, dynamic palette changes, absent pack, and resource ownership",
+  "full_game": "Everything 4x title demo rendered; native menu switched Original -> Pack -> Everything 4x",
+  "runtime_stderr_bytes": 0,
+  "limitations": [
+    "First generation may hitch; extra GPU memory",
+    "Framebuffer captures retain existing full-resolution rendering",
+    "Existing AI pack seams remain",
+    "Injected F6 input was not confirmed during this UI run; menu cycle and direct mode selection were confirmed",
+    "Not a complete gameplay/season/save validation"
+  ]
+}

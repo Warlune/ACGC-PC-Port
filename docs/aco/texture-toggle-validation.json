@@ -1,0 +1,9 @@
+{
+  "executable": "native-runtime/AnimalCrossing-ACO.exe",
+  "sha256": "053043CBE03F092863D1772933244F526D7A5A46C0D86E44D48BA9569D479829",
+  "cache_smoke_test": "passed; 20 warm switches, sampler parity, fallback and ownership",
+  "full_game": "Observed ORIGINAL and PACK transitions at matching resident cache counts in texture-toggle-runtime.log",
+  "ui": "F6 exercised in game; native menu and in-game row implemented but not independently exercised",
+  "observed_issue": "User reports more visible seams with the 4x pack; visual tile continuity still needs refinement",
+  "runtime_stderr": 0
+}

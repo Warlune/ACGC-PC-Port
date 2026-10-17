@@ -1,6 +1,7 @@
 /* pc_vi.c - video interface → SDL window swap + frame pacing */
 #include "pc_platform.h"
 #include "pc_profiler.h"
+#include "pc_settings.h"
 
 #define VI_TVMODE_NTSC_INT    0
 #define VI_TVMODE_NTSC_DS     1
@@ -125,8 +126,10 @@ void VIWaitForRetrace(void) {
             Uint64 now = SDL_GetPerformanceCounter();
             double secs = (double)(now - fps_start) / (double)perf_freq;
             double fps = (double)fps_count / secs;
-            char title[64];
-            snprintf(title, sizeof(title), "Animal Crossing - %.1f FPS", fps);
+            char title[128];
+            const char* texture_mode = g_pc_settings.texture_replacements==2 ? "EVERYTHING 4X" : g_pc_settings.texture_replacements ? "PACK" : "ORIGINAL";
+            if (g_pc_settings.show_fps) snprintf(title, sizeof(title), "Animal Crossing - %.1f FPS [Textures: %s]", fps, texture_mode);
+            else snprintf(title, sizeof(title), "Animal Crossing [Textures: %s]", texture_mode);
             SDL_SetWindowTitle(g_pc_window, title);
             fps_start = now;
             fps_count = 0;

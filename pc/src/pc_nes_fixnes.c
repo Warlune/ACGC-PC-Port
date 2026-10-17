@@ -42,8 +42,8 @@ extern void pc_gx_restore_after_nes(void);
 extern void pc_gx_draw_pending(void);
 
 /* Externed directly (not via headers) to avoid fixNES symbol clashes. */
-extern int g_pc_window_w;
-extern int g_pc_window_h;
+extern int g_pc_render_w;
+extern int g_pc_render_h;
 extern int pc_settings_get_nes_aspect(void);
 extern int g_pc_profile_enabled;
 extern void pc_profiler_add_count_texture_bind_slow(void);
@@ -398,8 +398,8 @@ void pc_fixnes_render_frame(uint16_t *fb) {
                  GL_RGB, GL_UNSIGNED_SHORT_5_6_5_REV, fb + 256 * 8);
 
     /* 0 = stretch to window, 1 = centered 4:3 with pillar/letterbox. */
-    int win_w = g_pc_window_w;
-    int win_h = g_pc_window_h;
+    int win_w = g_pc_render_w;
+    int win_h = g_pc_render_h;
     int vp_w, vp_h, vp_x, vp_y;
     if (pc_settings_get_nes_aspect() == 0) {
         vp_w = win_w; vp_h = win_h; vp_x = 0; vp_y = 0;

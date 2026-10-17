@@ -37,6 +37,28 @@ compile_commands.json
 !requirements.txt
 *.exe
 
+# Local game data, generated texture packs, models and player state
+*.iso
+*.gcm
+*.ciso
+*.wbfs
+*.dds
+*.gci
+*.raw
+*.dll
+rom/
+save/
+texture_pack/
+texture-packs/
+texture-work/
+toolchain/
+native-runtime/
+native-preview/
+native-texture-test/
+settings.ini
+keybindings.ini
+shader_cache.bin
+
 # For saving work files into (like IDB)
 temp/
 

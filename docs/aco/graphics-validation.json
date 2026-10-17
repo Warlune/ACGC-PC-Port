@@ -1,0 +1,32 @@
+{
+  "base_tag": "v0.9.3-playtest",
+  "base_commit": "4099d246c927e75b4fd342ca13f4ac4395c55af5",
+  "executable": "native-runtime/AnimalCrossing-ACO.exe",
+  "executable_sha256": "ab05b1474fc401a650b25373aeea6db90524d546922c95db89fdfef5afb5e423",
+  "locally_compiled": true,
+  "backend": "OpenGL 3.3",
+  "dlss_implemented": false,
+  "original_renderer_retained": true,
+  "driver_tests": "60 scale/MSAA/filter combinations; readback, orientation, anisotropy, resize, state restoration",
+  "full_game_checks": [
+    "Title rendering approximately 60 FPS",
+    "Native menu and preset commands",
+    "600x450 internal -> 800x600 output with 2x MSAA",
+    "Settings persisted and reloaded on restart",
+    "Compatibility with original runtime SDL2.dll",
+    "Capabilities dialog reports GPU and effective settings"
+  ],
+  "unverified": [
+    "Extended gameplay",
+    "In-game Image tab visual/input check",
+    "Fullscreen transitions",
+    "Full gameplay save/reload"
+  ],
+  "logs": [
+    "graphics-build.log",
+    "graphics-build-incremental.log",
+    "graphics-build-final.log",
+    "graphics-smoke.log",
+    "graphics-final.log"
+  ]
+}

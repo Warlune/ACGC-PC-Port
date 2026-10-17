@@ -19,6 +19,13 @@ enum {
     ITEM_VSYNC,
     ITEM_MAX_FPS,
     ITEM_MSAA,
+    ITEM_RENDER_SCALE,
+    ITEM_UPSCALE_FILTER,
+    ITEM_FXAA,
+    ITEM_SHARPNESS,
+    ITEM_SHOW_FPS,
+    ITEM_ANISOTROPY,
+    ITEM_TEXTURE_SOURCE,
     ITEM_TEXTURE_FILTERING,
     ITEM_RES,
     ITEM_TEXTURES,
@@ -44,7 +51,7 @@ static const Item tab_video_items[] = {
     { "Display",    ITEM_DISPLAY,  0 },
     { "VSync",      ITEM_VSYNC,    0 },
     { "Max FPS",    ITEM_MAX_FPS,  0 },
-    { "MSAA",       ITEM_MSAA,     1 },
+    { "MSAA",       ITEM_MSAA,     0 },
     { "Texture filter", ITEM_TEXTURE_FILTERING, 0 },
     { "Resolution", ITEM_RES,      0 },
     { "Textures",   ITEM_TEXTURES, 1 },
@@ -59,6 +66,16 @@ static const Item tab_gameplay_items[] = {
 
 static const Item tab_audio_items[] = {
     { "Master volume", ITEM_MASTER_VOLUME, 0 },
+};
+
+static const Item tab_image_items[] = {
+    { "Texture source", ITEM_TEXTURE_SOURCE, 0 },
+    { "Render scale", ITEM_RENDER_SCALE, 0 },
+    { "Spatial filter", ITEM_UPSCALE_FILTER, 0 },
+    { "FXAA", ITEM_FXAA, 0 },
+    { "Sharpening", ITEM_SHARPNESS, 0 },
+    { "FPS in title", ITEM_SHOW_FPS, 0 },
+    { "Anisotropy", ITEM_ANISOTROPY, 0 },
 };
 
 static const Item tab_controls_items[] = {
@@ -76,6 +93,7 @@ typedef struct {
 #define TAB_ITEMS(a) (a), (int)(sizeof(a) / sizeof((a)[0]))
 static const Tab s_tabs[] = {
     { "Video",    TAB_ITEMS(tab_video_items) },
+    { "Image",    TAB_ITEMS(tab_image_items) },
     { "Audio",    TAB_ITEMS(tab_audio_items) },
     { "Controls", TAB_ITEMS(tab_controls_items) },
     { "Gameplay", TAB_ITEMS(tab_gameplay_items) },
@@ -233,8 +251,7 @@ static void sanitize_glyphs(char* s) {
     }
 }
 
-/* Startup snapshot + restart-required flag. Some settings (MSAA, texture
- * pack preload mode) only take effect on process restart. More might appear.*/
+/* Texture pack preloading still requires restart; MSAA now applies live. */
 static PCSettings s_startup;
 static int        s_startup_captured = 0;
 static int        s_pending_restart = 0;
@@ -247,6 +264,13 @@ static void recompute_dirty(void) {
         (s_pending.vsync            != g_pc_settings.vsync) ||
         (s_pending.max_fps          != g_pc_settings.max_fps) ||
         (s_pending.msaa             != g_pc_settings.msaa) ||
+        (s_pending.render_scale     != g_pc_settings.render_scale) ||
+        (s_pending.upscale_filter   != g_pc_settings.upscale_filter) ||
+        (s_pending.fxaa             != g_pc_settings.fxaa) ||
+        (s_pending.sharpness        != g_pc_settings.sharpness) ||
+        (s_pending.show_fps         != g_pc_settings.show_fps) ||
+        (s_pending.anisotropy       != g_pc_settings.anisotropy) ||
+        (s_pending.texture_replacements != g_pc_settings.texture_replacements) ||
         (s_pending.texture_filtering != g_pc_settings.texture_filtering) ||
         (s_pending.window_width     != g_pc_settings.window_width) ||
         (s_pending.window_height    != g_pc_settings.window_height) ||
@@ -291,6 +315,29 @@ static void item_cycle(int id, int dir) {
             for (int i = 0; i < 4; i++) if (s_pending.msaa == steps[i]) { idx = i; break; }
             idx = (idx + (dir > 0 ? 1 : 3)) % 4;
             s_pending.msaa = steps[idx];
+        } break;
+        case ITEM_RENDER_SCALE: {
+            static const int steps[] = {50, 67, 75, 100, 125, 150, 200};
+            int idx = 3;
+            for (int i=0; i<7; i++) if (s_pending.render_scale == steps[i]) idx=i;
+            s_pending.render_scale = steps[(idx + (dir>0 ? 1 : 6)) % 7];
+        } break;
+        case ITEM_UPSCALE_FILTER:
+            s_pending.upscale_filter = (s_pending.upscale_filter + (dir>0?1:2)) % 3;
+            break;
+        case ITEM_FXAA: s_pending.fxaa = !s_pending.fxaa; break;
+        case ITEM_SHARPNESS:
+            s_pending.sharpness += dir>0?25:-25;
+            if(s_pending.sharpness<0) s_pending.sharpness=0;
+            if(s_pending.sharpness>100) s_pending.sharpness=100;
+            break;
+        case ITEM_SHOW_FPS: s_pending.show_fps = !s_pending.show_fps; break;
+        case ITEM_TEXTURE_SOURCE: s_pending.texture_replacements = (s_pending.texture_replacements+(dir>0?1:2))%3; break;
+        case ITEM_ANISOTROPY: {
+            static const int values[]={1,2,4,8,16};
+            int idx=0;
+            for(int i=0;i<5;i++) if(values[i]==s_pending.anisotropy) idx=i;
+            s_pending.anisotropy=values[(idx+(dir>0?1:4))%5];
         } break;
         case ITEM_TEXTURE_FILTERING:
             s_pending.texture_filtering = !s_pending.texture_filtering;
@@ -363,6 +410,15 @@ static void item_format(int id, char* buf, size_t n) {
         case ITEM_TEXTURE_FILTERING:
             snprintf(buf, n, "%s", s_pending.texture_filtering ? "< On >" : "< Off >");
             break;
+        case ITEM_RENDER_SCALE:
+            snprintf(buf, n, "< %d%% >", s_pending.render_scale); break;
+        case ITEM_UPSCALE_FILTER:
+            snprintf(buf, n, "< %s >", s_pending.upscale_filter==0?"Nearest":s_pending.upscale_filter==1?"Bilinear":"Bicubic"); break;
+        case ITEM_FXAA: snprintf(buf, n, "< %s >", s_pending.fxaa?"On":"Off"); break;
+        case ITEM_SHARPNESS: snprintf(buf, n, "< %d%% >", s_pending.sharpness); break;
+        case ITEM_SHOW_FPS: snprintf(buf, n, "< %s >", s_pending.show_fps?"On":"Off"); break;
+        case ITEM_TEXTURE_SOURCE: snprintf(buf,n,"< %s >",s_pending.texture_replacements==2?"Everything 4x":s_pending.texture_replacements?"Pack":"Original"); break;
+        case ITEM_ANISOTROPY: snprintf(buf,n,"< %dx >",s_pending.anisotropy); break;
         case ITEM_RES:
             snprintf(buf, n, "< %dx%d >", s_pending.window_width, s_pending.window_height);
             break;
@@ -410,6 +466,13 @@ static int item_changed(int id) {
         case ITEM_VSYNC:      return s_pending.vsync            != g_pc_settings.vsync;
         case ITEM_MAX_FPS:    return s_pending.max_fps          != g_pc_settings.max_fps;
         case ITEM_MSAA:       return s_pending.msaa             != g_pc_settings.msaa;
+        case ITEM_RENDER_SCALE: return s_pending.render_scale != g_pc_settings.render_scale;
+        case ITEM_UPSCALE_FILTER: return s_pending.upscale_filter != g_pc_settings.upscale_filter;
+        case ITEM_FXAA: return s_pending.fxaa != g_pc_settings.fxaa;
+        case ITEM_SHARPNESS: return s_pending.sharpness != g_pc_settings.sharpness;
+        case ITEM_SHOW_FPS: return s_pending.show_fps != g_pc_settings.show_fps;
+        case ITEM_TEXTURE_SOURCE: return s_pending.texture_replacements != g_pc_settings.texture_replacements;
+        case ITEM_ANISOTROPY: return s_pending.anisotropy != g_pc_settings.anisotropy;
         case ITEM_TEXTURE_FILTERING:
             return s_pending.texture_filtering != g_pc_settings.texture_filtering;
         case ITEM_RES:        return (s_pending.window_width  != g_pc_settings.window_width) ||
@@ -432,7 +495,6 @@ static int item_changed(int id) {
  * the "restart required" banner should show. */
 static int item_differs_from_startup(int id) {
     switch (id) {
-        case ITEM_MSAA:     return g_pc_settings.msaa             != s_startup.msaa;
         case ITEM_TEXTURES: return g_pc_settings.preload_textures != s_startup.preload_textures;
     }
     return 0;

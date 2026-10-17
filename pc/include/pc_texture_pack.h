@@ -18,6 +18,8 @@ GLuint pc_texture_pack_lookup(const void* data, int data_size,
                               int* out_w, int* out_h);
 
 int pc_texture_pack_active(void);
+/* 0: originals, 1: pack, 2: pack plus runtime 4x for all other decoded textures. */
+void pc_gx_texture_set_replacements(int enabled);
 
 #ifdef __cplusplus
 }

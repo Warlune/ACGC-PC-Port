@@ -1,6 +1,7 @@
 /* pc_gx.c - GX API → OpenGL 3.3: state management, vertex submission, draw dispatch */
 #include "pc_gx_internal.h"
 #include "pc_profiler.h"
+#include "pc_graphics.h"
 #include <stddef.h>
 static GLushort quad_index_buf[(PC_GX_MAX_VERTS / 4) * 6];
 #include <math.h>
@@ -59,7 +60,7 @@ static int   g_aspect_active = 0;
 
 static void pc_gx_update_aspect(void) {
     float gc_aspect = (float)PC_GC_WIDTH / (float)PC_GC_HEIGHT;
-    float win_aspect = (float)g_pc_window_w / (float)g_pc_window_h;
+    float win_aspect = (float)g_pc_render_w / (float)g_pc_render_h;
     if (win_aspect > gc_aspect + 0.01f) {
         g_aspect_factor = gc_aspect / win_aspect;
         g_aspect_offset = (1.0f - g_aspect_factor) / 2.0f * (float)PC_GC_WIDTH;
@@ -387,6 +388,7 @@ void pc_gx_begin_frame(void) {
     pc_gx_draw_call_count = 0;
     g_pc_widescreen_stretch = 0;
     pc_gx_draw_pending();
+    pc_graphics_begin_frame();
     /* glClear respects write masks — must enable all before clearing */
     glDepthMask(GL_TRUE);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -395,7 +397,7 @@ void pc_gx_begin_frame(void) {
 #ifdef PC_ENHANCEMENTS
     pc_gx_update_aspect();
     glDisable(GL_SCISSOR_TEST);
-    glViewport(0, 0, g_pc_window_w, g_pc_window_h);
+    glViewport(0, 0, g_pc_render_w, g_pc_render_h);
     pc_gx_viewport_state_invalidate();
 #endif
     glClearDepth(g_gx.clear_depth);
@@ -1322,8 +1324,8 @@ void GXSetViewport(f32 left, f32 top, f32 wd, f32 ht, f32 nearz, f32 farz) {
     g_gx.viewport[5] = farz;
 #ifdef PC_ENHANCEMENTS
     {
-        float sx = (float)g_pc_window_w / (float)PC_GC_WIDTH;
-        float sy = (float)g_pc_window_h / (float)PC_GC_HEIGHT;
+        float sx = (float)g_pc_render_w / (float)PC_GC_WIDTH;
+        float sy = (float)g_pc_render_h / (float)PC_GC_HEIGHT;
         float adj_left = left;
         float adj_wd = wd;
 
@@ -1341,7 +1343,7 @@ void GXSetViewport(f32 left, f32 top, f32 wd, f32 ht, f32 nearz, f32 farz) {
         gl_x = (int)(adj_left * sx);
         gl_w = (int)(adj_wd * sx);
         gl_h = (int)(ht * sy);
-        gl_y = g_pc_window_h - (int)(top * sy) - gl_h;
+        gl_y = g_pc_render_h - (int)(top * sy) - gl_h;
     }
 #else
     /* GX is Y-down, GL is Y-up */
@@ -1381,12 +1383,12 @@ void GXSetScissor(u32 left, u32 top, u32 wd, u32 ht) {
     g_gx.scissor[3] = ht;
 #ifdef PC_ENHANCEMENTS
     {
-        float sx = (float)g_pc_window_w / (float)PC_GC_WIDTH;
-        float sy = (float)g_pc_window_h / (float)PC_GC_HEIGHT;
+        float sx = (float)g_pc_render_w / (float)PC_GC_WIDTH;
+        float sy = (float)g_pc_render_h / (float)PC_GC_HEIGHT;
         gl_x = (int)(left * sx);
         gl_w = (int)(wd * sx);
         gl_h = (int)(ht * sy);
-        gl_y = g_pc_window_h - (int)(top * sy) - gl_h;
+        gl_y = g_pc_render_h - (int)(top * sy) - gl_h;
     }
 #else
     /* GX is Y-down, GL is Y-up */
@@ -2001,7 +2003,7 @@ void GXSetCopyClear(GXColor clear_clr, u32 clear_z) {
 }
 
 void GXCopyDisp(void* dest, GXBool clear) {
-    /* On PC we render to the back buffer directly; swap happens in VIWaitForRetrace.
+    /* On PC we render to the current scene target; swap happens in VIWaitForRetrace.
      * Just flush pending geometry — do NOT swap or clear here. */
     pc_gx_commit_pending_and_flush();
     pc_gx_draw_pending();
@@ -2045,8 +2047,8 @@ static void pc_gx_copy_tex_execute_impl(void* dest, GXBool clear) {
 
 #ifdef PC_ENHANCEMENTS
     /* Scale readback coordinates from GC coords to window resolution */
-    float sx = (float)g_pc_window_w / (float)PC_GC_WIDTH;
-    float sy = (float)g_pc_window_h / (float)PC_GC_HEIGHT;
+    float sx = (float)g_pc_render_w / (float)PC_GC_WIDTH;
+    float sy = (float)g_pc_render_h / (float)PC_GC_HEIGHT;
     int read_left = (int)(g_gx.tex_copy_src[0] * sx);
     int read_top  = (int)(g_gx.tex_copy_src[1] * sy);
     int read_wd   = (int)(out_wd * sx);
@@ -2060,11 +2062,11 @@ static void pc_gx_copy_tex_execute_impl(void* dest, GXBool clear) {
 
     if (read_left < 0) { read_wd += read_left; read_left = 0; }
     if (read_top < 0)  { read_ht += read_top;  read_top = 0; }
-    if (read_left + read_wd > g_pc_window_w) read_wd = g_pc_window_w - read_left;
-    if (read_top + read_ht > g_pc_window_h)  read_ht = g_pc_window_h - read_top;
+    if (read_left + read_wd > g_pc_render_w) read_wd = g_pc_render_w - read_left;
+    if (read_top + read_ht > g_pc_render_h)  read_ht = g_pc_render_h - read_top;
     if (read_wd <= 0 || read_ht <= 0) return;
 
-    int gl_y = g_pc_window_h - (read_top + read_ht);
+    int gl_y = g_pc_render_h - (read_top + read_ht);
     if (gl_y < 0) return;
 
     size_t rgba_size = (size_t)read_wd * (size_t)read_ht * 4;
@@ -2072,7 +2074,9 @@ static void pc_gx_copy_tex_execute_impl(void* dest, GXBool clear) {
     if (!rgba) return;
 
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    pc_graphics_readback_begin();
     glReadPixels(read_left, gl_y, read_wd, read_ht, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    pc_graphics_readback_end();
 
 #ifdef PC_ENHANCEMENTS
     /* Store as full-res GL texture; GXLoadTexObj will substitute it for the RGB565 buffer */

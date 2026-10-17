@@ -3,6 +3,8 @@
 #include "pc_gx_internal.h"
 #include "pc_texture_pack.h"
 #include "pc_settings.h"
+#include "pc_graphics.h"
+#include "pc_window_menu.h"
 #include "pc_keybindings.h"
 #include "pc_assets.h"
 #include "pc_disc.h"
@@ -35,6 +37,7 @@ int           g_pc_weather_intensity_override = mEnv_WEATHER_INTENSITY_HEAVY;
 int           g_pc_window_w = PC_SCREEN_WIDTH;
 int           g_pc_window_h = PC_SCREEN_HEIGHT;
 int           g_pc_widescreen_stretch = 0;
+static int texture_compare_toggle_pending = 0;
 
 /* exe image range -- used by seg2k0 to distinguish pointers from segment addresses */
 unsigned int pc_image_base = 0;
@@ -55,12 +58,10 @@ void pc_platform_init(void) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-#ifdef PC_ENHANCEMENTS
-    if (g_pc_settings.msaa > 0) {
-        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
-        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, g_pc_settings.msaa);
-    }
-#endif
+    /* MSAA lives in an offscreen target so it can change without restarting.
+     * The presentation framebuffer must remain single-sample. */
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
 
     {
         Uint32 flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
@@ -110,6 +111,9 @@ void pc_platform_init(void) {
 #endif
 
     pc_gx_init();
+    pc_graphics_init();
+    pc_window_menu_init();
+    pc_platform_update_window_size();
     pc_texture_pack_init();
 #ifdef PC_ENHANCEMENTS
     if (g_pc_settings.preload_textures) {
@@ -136,6 +140,8 @@ void pc_platform_shutdown(void) {
     pc_audio_mq_shutdown();
     PADCleanup();
     pc_texture_pack_shutdown();
+    pc_window_menu_shutdown();
+    pc_graphics_shutdown();
     pc_gx_shutdown();
 
     if (g_pc_gl_context) {
@@ -157,7 +163,17 @@ void pc_platform_update_window_size(void) {
 
 void pc_platform_swap_buffers(void) {
     pc_gx_draw_pending();
+    pc_graphics_present();
     SDL_GL_SwapWindow(g_pc_window);
+    pc_window_menu_apply_pending();
+    if (texture_compare_toggle_pending) {
+        int steps = texture_compare_toggle_pending;
+        texture_compare_toggle_pending = 0;
+        pc_gx_texture_set_replacements((g_pc_settings.texture_replacements+steps)%3);
+        pc_settings_save();
+        pc_window_menu_refresh();
+    }
+    pc_graphics_begin_frame();
 }
 
 int pc_platform_poll_events(void) {
@@ -166,6 +182,7 @@ int pc_platform_poll_events(void) {
     pc_typing_update();
 
     while (SDL_PollEvent(&event)) {
+        pc_window_menu_event(&event);
         switch (event.type) {
             case SDL_QUIT:
                 g_pc_running = 0;
@@ -176,10 +193,23 @@ int pc_platform_poll_events(void) {
                 }
                 break;
             case SDL_KEYDOWN:
+                if (event.key.keysym.sym == SDLK_RETURN &&
+                    (event.key.keysym.mod & KMOD_ALT) && !event.key.repeat) {
+                    if (!pc_settings_menu_active()) {
+                        g_pc_settings.fullscreen = g_pc_settings.fullscreen ? 0 : 2;
+                        pc_settings_apply();
+                        pc_settings_save();
+                    }
+                    break;
+                }
                 /* Keybinding capture eats all input first (works from both
                  * the pause menu and the title Options menu). */
                 if (pc_settings_menu_capture_active()) {
                     pc_settings_menu_handle_capture_event(&event);
+                    break;
+                }
+                if (event.key.keysym.sym == SDLK_F6 && !event.key.repeat) {
+                    if (!pc_settings_menu_active()) texture_compare_toggle_pending = (texture_compare_toggle_pending+1)%3;
                     break;
                 }
                 if (event.key.keysym.sym == SDLK_F3 && !event.key.repeat) {

@@ -12,6 +12,13 @@ typedef struct {
     int vsync;            /* 0=off, 1=on */
     int max_fps;          /* 0=uncapped, otherwise frame limiter target */
     int msaa;             /* 0=off, 2/4/8=samples */
+    int render_scale;     /* percent of output resolution, 50..200 */
+    int upscale_filter;   /* 0=nearest, 1=bilinear, 2=Catmull-Rom bicubic */
+    int fxaa;             /* spatial post-process AA */
+    int sharpness;        /* bounded unsharp mask strength, 0..100 */
+    int show_fps;         /* show FPS in the window title */
+    int anisotropy;       /* 1=off, 2/4/8/16x; clamped to device support */
+    int texture_replacements; /* 0=original, 1=pack, 2=pack + runtime 4x fallback */
     int texture_filtering; /* 0=force nearest-neighbor, 1=use the game's texture filtering */
     int preload_textures; /* 0=off (load on demand), 1=on (load all at startup), 2=on + cache file */
     int disable_resetti;  /* 0=normal (Resetti appears on reset), 1=disable reset penalty */
