@@ -1,0 +1,18 @@
+{
+  "feature": "Camera distance slider",
+  "location": "Options/Settings > Gameplay > Camera distance",
+  "range_percent": [
+    75,
+    150
+  ],
+  "step_percent": 5,
+  "default_percent": 100,
+  "persisted_setting": "camera_distance",
+  "native_build": "passed",
+  "executable": "native-runtime/AnimalCrossing-ACO.exe",
+  "sha256": "CF8554C853CE902764374DF65C2B1D976A8CF152201239F457D4D289D5B4E89F",
+  "camera_modes": "Normal gameplay and acre transitions; original scripted/talk/item framing retained",
+  "runtime_visual_test": "Not performed; user is testing and requested no window interaction",
+  "running_game": "No interaction, resizing, termination or changes to its saves/settings",
+  "limitation": "Does not extend engine streaming/culling distance"
+}

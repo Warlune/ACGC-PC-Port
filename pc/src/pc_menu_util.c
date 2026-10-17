@@ -27,6 +27,36 @@ void pc_menu_dim_rect(GRAPH* graph, int alpha) {
     CLOSE_DISP(graph);
 }
 
+void pc_menu_draw_slider(GRAPH* graph, float x, float y, float width, float value, int selected) {
+    if (value < 0.0f) value = 0.0f;
+    if (value > 1.0f) value = 1.0f;
+    int left=(int)x, top=(int)y, right=(int)(x+width);
+    int thumb=(int)(x+width*value);
+    Gfx* gfx;
+    OPEN_DISP(graph);
+    gfx = NOW_FONT_DISP;
+    gDPNoOpTag(gfx++, PC_NOOP_WIDESCREEN_STRETCH);
+    gDPPipeSync(gfx++);
+    gDPSetOtherMode(gfx++,
+        G_AD_DISABLE | G_CD_MAGICSQ | G_CK_NONE | G_TC_FILT |
+        G_TF_POINT | G_TT_NONE | G_TL_TILE | G_TD_CLAMP |
+        G_TP_NONE | G_CYC_1CYCLE | G_PM_NPRIMITIVE,
+        G_AC_NONE | G_ZS_PRIM | G_RM_XLU_SURF | G_RM_XLU_SURF2);
+    gDPSetCombineMode(gfx++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
+    gDPSetPrimColor(gfx++, 0, 0, 75, 75, 75, 230);
+    gfx = gfx_gSPTextureRectangle1(gfx, left*4, (top+5)*4, right*4, (top+8)*4, 0, 0, 0, 0, 0);
+    gDPPipeSync(gfx++);
+    gDPSetPrimColor(gfx++, 0, 0, selected?255:160, selected?235:190, selected?120:210, 255);
+    if (thumb > left) {
+        gfx = gfx_gSPTextureRectangle1(gfx, left*4, (top+5)*4, thumb*4, (top+8)*4, 0, 0, 0, 0, 0);
+    }
+    gfx = gfx_gSPTextureRectangle1(gfx, (thumb-1)*4, (top+2)*4, (thumb+2)*4, (top+11)*4, 0, 0, 0, 0, 0);
+    gDPPipeSync(gfx++);
+    gDPNoOpTag(gfx++, PC_NOOP_WIDESCREEN_STRETCH_OFF);
+    SET_FONT_DISP(gfx);
+    CLOSE_DISP(graph);
+}
+
 void pc_menu_row_colors(int selected, int* r, int* g, int* b, int* a) {
     if (selected) { *r = 255; *g = 235; *b = 120; *a = 255; }
     else          { *r = 200; *g = 200; *b = 200; *a = 200; }

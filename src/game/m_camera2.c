@@ -10,6 +10,9 @@
 #include "m_scene_table.h"
 #include "m_common_data.h"
 #include "m_field_make.h"
+#ifdef TARGET_PC
+#include "pc_settings.h"
+#endif
 
 #if VERSION >= VER_GAFU01_00
 #define CAMERA2_STAFFROLL_CENTER_X_ROT_STEP_DIVISOR 3333
@@ -525,6 +528,17 @@ static void Camera2_Get_GoalDistanceAndDirection(GAME_PLAY* play, f32* dist, s_x
     }
 
     Camera2_main_Normal_AdjustDistanceAndDirection(play, dist, dir);
+#ifdef TARGET_PC
+    /* Scale the freshly computed goal, never the previous frame's distance.
+     * Keep scripted/talking/item cameras on their original framing. The
+     * existing interpolation applies changes and returns from those modes. */
+    if (main_index == CAMERA2_PROCESS_NORMAL || main_index == CAMERA2_PROCESS_WADE) {
+        int percent = g_pc_settings.camera_distance;
+        if (percent < 75) percent = 75;
+        if (percent > 150) percent = 150;
+        *dist *= percent * 0.01f;
+    }
+#endif
 }
 
 static void Camera2_SetPos_fromStartEnd(GAME_PLAY* play, const xyz_t* start, const xyz_t* end, f32 now_time,

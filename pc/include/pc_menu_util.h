@@ -15,6 +15,9 @@ struct graph_s;
 
 /* Full-screen translucent black backdrop, drawn into NOW_FONT_DISP. */
 void pc_menu_dim_rect(struct graph_s* graph, int alpha);
+/* Compact settings slider; value is clamped to 0..1. */
+void pc_menu_draw_slider(struct graph_s* graph, float x, float y, float width,
+                         float value, int selected);
 
 /* Yellow when selected, grey otherwise. */
 void pc_menu_row_colors(int selected, int* r, int* g, int* b, int* a);

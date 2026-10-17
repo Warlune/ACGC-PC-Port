@@ -24,6 +24,7 @@ typedef struct {
     int disable_resetti;  /* 0=normal (Resetti appears on reset), 1=disable reset penalty */
     int disable_shop_visitor_req; /* 0=normal (Nookington's needs a foreign-town shopper), 1=skip requirement */
     int borderless_acres; /* 0=original acre transitions (faster, draws less), 1=continuous camera/movement */
+    int camera_distance;  /* normal gameplay camera distance percent, 75..150, default 100 */
     int nes_aspect;       /* NES emulator aspect: 0=fullscreen stretch, 1=4:3 pillarbox (default) */
     int master_volume;    /* Applied at the PC audio output, 0-100 (default 100) */
     int stick_deadzone;   /* Gamepad main stick deadzone, percent 0-40 (default 12) */
