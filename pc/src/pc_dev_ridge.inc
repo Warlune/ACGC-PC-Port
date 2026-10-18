@@ -218,78 +218,116 @@ void* pc_dev_outer_coast_model(int bx,int bz) {
     return coast_walls[bx==0];
 }
 
-/* All coast overrides are solid mountain geometry. */
+/* The rounded shoreline cap is modeled over the original native ocean
+ * surface, so the shallow-water notch at the outer corners stays filled.
+ * Keep this to the two cap tiles: surrounding sea blocks retain their native
+ * animated wave and collision behavior. */
+extern Gfx grd_s_o_1_model[];
+extern Gfx grd_s_o_1_modelT[];
+static Gfx outer_coast_water[4];
+static int outer_coast_water_ready;
 void* pc_dev_outer_coast_water_model(int bx,int bz) {
-    (void)bx;(void)bz;return NULL;
+    if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG || bz!=6 ||
+       (bx!=ACO_TOWN_X0 && bx!=ACO_TOWN_X0+20))return NULL;
+    if(!outer_coast_water_ready) {
+        gSPDisplayList(&outer_coast_water[0],grd_s_o_1_model);
+        gSPDisplayList(&outer_coast_water[1],grd_s_o_1_modelT);
+        gSPEndDisplayList(&outer_coast_water[2]);
+        outer_coast_water_ready=1;
+    }
+    return outer_coast_water;
 }
 
-/* A full-height cedar fence follows each town seam. Collision uses matching
- * native wall attributes; the displayed boards remain at native scale. */
-typedef struct { Vtx vertices[2048]; Gfx commands[1024]; int nv; } DevGateMesh;
-static DevGateMesh dev_gate_mesh[2];
-static DevGateMesh* dev_gate_active_mesh;
+/* Repeat the native summer white-fence panels at their original scale from
+ * the mountain foot across the dry shore passage. */
+extern Vtx obj_s_fenceL_v[];
+extern Vtx obj_s_fenceS_v[];
+extern u8 obj_s_fence_tex[];
+#define DEV_GATE_MAX_PANELS 24
+static Gfx dev_gate_material[16];
+static Gfx dev_gate_mesh[2][DEV_GATE_MAX_PANELS*6+3];
+static Vtx dev_gate_vertices[2][DEV_GATE_MAX_PANELS][2][4];
 static int dev_gate_mesh_ready[2];
 
-static void dev_gate_quad(float x0,float y0,float z0,float x1,float y1,float z1,int face) {
-    static const int corner[6][4][3] = {
-        {{0,0,0},{0,0,1},{0,1,1},{0,1,0}}, {{1,0,1},{1,0,0},{1,1,0},{1,1,1}},
-        {{0,0,1},{0,0,0},{1,0,0},{1,0,1}}, {{0,1,0},{0,1,1},{1,1,1},{1,1,0}},
-        {{1,0,0},{0,0,0},{0,1,0},{1,1,0}}, {{0,0,1},{1,0,1},{1,1,1},{0,1,1}}
-    };
-    Vtx* v=dev_gate_active_mesh->vertices+dev_gate_active_mesh->nv;
-    for(int i=0;i<4;i++) {
-        memset(v+i,0,sizeof(*v));
-        v[i].v.ob[0]=(short)lroundf((corner[face][i][0]?x1:x0)*16.0f);
-        v[i].v.ob[1]=(short)lroundf((corner[face][i][1]?y1:y0)*16.0f);
-        v[i].v.ob[2]=(short)lroundf((corner[face][i][2]?z1:z0)*16.0f);
-        v[i].n.a=255;
-    }
-    dev_gate_active_mesh->nv+=4;
-}
-
-static void dev_gate_box(float x0,float y0,float z0,float x1,float y1,float z1) {
-    for(int face=0;face<6;face++)dev_gate_quad(x0,y0,z0,x1,y1,z1,face);
-}
-
 static void dev_gate_build(int seam_idx) {
-    DevGateMesh* mesh=&dev_gate_mesh[seam_idx];
-    Gfx* g=mesh->commands;
-    mesh->nv=0;
-    dev_gate_active_mesh=mesh;
-    /* Fence only the dry shoreline units. Native sea/wave cells stay open so
-     * the barrier never paints over water or turns a boat route into a wall. */
+    /* Copy native vertices through a rigid transform into field coordinates.
+     * Their 0.01 actor scale and UVs are preserved, without nested matrices
+     * changing the field display-list state. */
+    static const u16 white_fence_pal[16]={
+        0x0a43,0xef7a,0xe317,0xdad5,0xd293,0xca51,0xc20f,0xbdee,
+        0xce72,0xc20f,0xb5ac,0xb18b,0xfbdd,0xf7bc,0xef7a,0xd6b4
+    };
+    static int panel_ready;
+    if(!panel_ready) {
+        {
+            Gfx* p=dev_gate_material;
+            gSPTexture(p++,0,0,0,G_TX_RENDERTILE,G_ON);
+            gDPSetRenderMode(p++,G_RM_FOG_SHADE_A,G_RM_AA_ZB_TEX_EDGE2);
+            gDPSetCombineLERP(p++,TEXEL0,0,SHADE,0,0,0,0,TEXEL0,PRIMITIVE,0,COMBINED,0,0,0,0,COMBINED);
+            /* Keep the native fence texture and woodgrain while mapping its
+             * palette luminance into warm whites and gray shadows. */
+            gDPLoadTLUT_Dolphin(p++,15,16,1,white_fence_pal);
+            gDPLoadTextureBlock_4b_Dolphin(p++,obj_s_fence_tex,G_IM_FMT_CI,64,32,15,GX_REPEAT,GX_CLAMP,0,0);
+            gDPSetPrimColor(p++,0,255,255,255,255,255);
+            gSPLoadGeometryMode(p++,G_ZBUFFER|G_SHADE|G_CULL_BACK|G_FOG|G_LIGHTING|G_SHADING_SMOOTH|G_DECAL_LEQUAL);
+            gSPEndDisplayList(p++);
+        }
+        panel_ready=1;
+    }
+    Gfx* g=dev_gate_mesh[seam_idx];
+    gSPDisplayList(g++,dev_gate_material);
+    int panels=0;
+    /* Row 5's flat final 80 units meet row 6's 360-unit dry shore. Drawing
+     * from row 6 with local z=-80 closes the mountain-foot bypass without
+     * drawing over ocean cells or across the whole acre. */
+    int row6=PC_DEV_GATE_FIRST_ROW==5?1:0;
     for(int uz=0;uz<UT_Z_NUM;) {
-        int west_attr=gate_saved_attr[seam_idx][0][0][uz];
-        int east_attr=gate_saved_attr[seam_idx][1][0][uz];
+        int west_attr=gate_saved_attr[seam_idx][0][row6][uz];
+        int east_attr=gate_saved_attr[seam_idx][1][row6][uz];
         int west_dry=pc_world_progression_gate_collision_attribute(0,west_attr,mCoBG_ATTRIBUTE_33)==mCoBG_ATTRIBUTE_33;
         int east_dry=pc_world_progression_gate_collision_attribute(0,east_attr,mCoBG_ATTRIBUTE_34)==mCoBG_ATTRIBUTE_34;
         if(!west_dry && !east_dry) { uz++; continue; }
-        int start=uz;
-        uz++;
+        int start=uz++;
         while(uz<UT_Z_NUM) {
-            west_attr=gate_saved_attr[seam_idx][0][0][uz];
-            east_attr=gate_saved_attr[seam_idx][1][0][uz];
+            west_attr=gate_saved_attr[seam_idx][0][row6][uz];
+            east_attr=gate_saved_attr[seam_idx][1][row6][uz];
             west_dry=pc_world_progression_gate_collision_attribute(0,west_attr,mCoBG_ATTRIBUTE_33)==mCoBG_ATTRIBUTE_33;
             east_dry=pc_world_progression_gate_collision_attribute(0,east_attr,mCoBG_ATTRIBUTE_34)==mCoBG_ATTRIBUTE_34;
-            if(!west_dry && !east_dry) break;
+            if(!west_dry && !east_dry)break;
             uz++;
         }
-        int z0=start*40,z1=uz*40;
-        /* Dense square pickets, twin rails, and reinforced end posts. */
-        dev_gate_box(610,0,z0,640,96,z0+4);
-        dev_gate_box(610,0,z1-4,640,96,z1);
-        dev_gate_box(610,28,z0,640,44,z1);
-        dev_gate_box(610,68,z0,640,84,z1);
-        for(int z=z0+40;z<z1-8;z+=80)
-            dev_gate_box(610,0,z,640,96,z+4);
-    }
-    gDPSetRenderMode(g++,G_RM_FOG_SHADE_A,G_RM_AA_ZB_OPA_SURF2);
-    gDPSetCombineMode(g++,G_CC_PRIMITIVE,G_CC_PRIMITIVE);
-    gDPSetPrimColor(g++,0,255,137,83,43,255);
-    gSPLoadGeometryMode(g++,G_ZBUFFER|G_SHADE|G_FOG);
-    for(int i=0;i<mesh->nv;i+=4) {
-        gSPVertex(g++,mesh->vertices+i,4,0);
-        gSPNTrianglesInit_5b(g++,2,0,1,2,0,2,3,0,0,0);
+        int z0=(start==0)?-80:start*40,z1=uz*40;
+        /* Native fence cards are flat sprites. A straight north/south card
+         * is edge-on to this game's camera. Join unscaled short sections in
+         * a shallow zigzag so both approaches can see the pickets. */
+        int count=(z1-z0+27)/28;
+        if(count>DEV_GATE_MAX_PANELS-panels)count=DEV_GATE_MAX_PANELS-panels;
+        printf("[GateArt] seam=%d dry passage world-z=%d..%d (%d units), native white fence height=38.41 at ground y=40\n",
+            seam_idx==0?ACO_TOWN_X0+7:ACO_TOWN_X0+14,6*640+z0,6*640+z1,z1-z0);
+        fflush(stdout);
+        float step=(float)(z1-z0)/count;
+        float dz=step/40.0f,dx=sqrtf(1.0f-dz*dz);
+        for(int j=0;j<count;j++,panels++) {
+            float center_z=z0+(j+0.5f)*step;
+            float tangent_x=(j&1)?-dx:dx;
+            const Vtx* source=obj_s_fenceS_v;
+            for(int face=0;face<2;face++) {
+                Vtx* vertices=dev_gate_vertices[seam_idx][panels][face];
+                for(int v=0;v<4;v++) {
+                    vertices[v]=source[v];
+                    float along=source[v].v.ob[0]*0.16f;
+                    float lean=(source[v].v.ob[2]-1000)*0.16f;
+                    vertices[v].v.ob[0]=(short)lroundf(640*16+along*tangent_x-lean*dz);
+                    vertices[v].v.ob[1]=(short)lroundf(40*16+source[v].v.ob[1]*0.16f);
+                    vertices[v].v.ob[2]=(short)lroundf(center_z*16+along*dz+lean*tangent_x);
+                    vertices[v].n.n[0]=(signed char)lroundf(-source[v].n.n[2]*dz*(face?-1:1));
+                    vertices[v].n.n[2]=(signed char)lroundf(source[v].n.n[2]*tangent_x*(face?-1:1));
+                }
+                gSPVertex(g++,vertices,4,0);
+                if(face) {gSPNTrianglesInit_5b(g++,2,0,2,1,0,3,2,0,0,0);}
+                else {gSPNTrianglesInit_5b(g++,2,0,1,2,0,2,3,0,0,0);}
+            }
+        }
     }
     gSPEndDisplayList(g++);
     dev_gate_mesh_ready[seam_idx]=1;
@@ -304,8 +342,7 @@ void* pc_dev_gate_model(int bx,int bz) {
             if(!gate_saved)pc_dev_gate_refresh();
             if(!gate_saved)return NULL;
             if(!dev_gate_mesh_ready[seam_idx])dev_gate_build(seam_idx);
-            if(dev_gate_mesh[seam_idx].nv==0)return NULL;
-            return dev_gate_mesh[seam_idx].commands;
+            return dev_gate_mesh[seam_idx];
         }
     }
     return NULL;

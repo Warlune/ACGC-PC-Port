@@ -33,7 +33,7 @@ static const pc_shop_item_t s_night_stock[] = {
 
 static pc_shop_item_t s_rotating_items[6];
 static pc_shop_catalog_t s_night_catalog = {
-    "NIGHT MARKET", "Open 8 PM to 5 AM - Six curios daily",
+    "MILO'S NIGHT MARKET", "Open 8 PM to 5 AM - Six curios daily",
     s_rotating_items, 6, NULL, NULL
 };
 static const pc_shop_catalog_t* s_active_catalog;

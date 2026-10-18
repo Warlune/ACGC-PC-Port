@@ -15,6 +15,7 @@
 #include "pc_pause_menu.h"
 #include "pc_menu_util.h"
 #include "m_font.h"
+#include "ac_shop_indoor.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -68,6 +69,8 @@ static pc_shop_item_t paint_rows[8],print_rows[8];
 static pc_shop_catalog_t paint_catalog,print_catalog;
 static int paint_page,design_pending;
 static GAME_PLAY* commerce_play;
+static int s_service_context;
+static int s_service_scene;
 static void studio_confirm(Private_c*,const pc_shop_item_t*,void*);
 static void print_confirm(Private_c*,const pc_shop_item_t*,void*);
 static const pc_shop_item_t studio_actions[]={
@@ -127,25 +130,114 @@ static int service_for_actor(ACTOR* actor) {
     if(actor->npc_id==NEEDLEWORK_SHOP)return PC_WORLD_SERVICE_CUSTOMIZATION;
     return 0;
 }
-/* Counter service replaces the copied building's original shared Nook/Able
- * interior and hours. Keeping a live proc preserves the native actor lifecycle. */
-static void commerce_structure_wait(ACTOR* actor,GAME* game){(void)actor;(void)game;}
+static void commerce_seller_idle(ACTOR* actor,GAME* game){(void)actor;(void)game;}
 #endif
+int pc_world_commerce_is_repurposed_shop_actor(ACTOR* actor) {
+#ifdef ACO_DEV_EAST
+    int service = service_for_actor(actor);
+    return service == PC_WORLD_SERVICE_NIGHT_MARKET ||
+           service == PC_WORLD_SERVICE_MARITIME_OUTFITTER;
+#else
+    (void)actor;
+    return 0;
+#endif
+}
+int pc_world_commerce_hide_native_stock(void) {
+#ifdef ACO_DEV_EAST
+    return g_pc_dev_east && Save_Get(scene_no)==SCENE_SHOP0 &&
+        (s_service_context==PC_WORLD_SERVICE_NIGHT_MARKET ||
+         s_service_context==PC_WORLD_SERVICE_MARITIME_OUTFITTER);
+#else
+    return 0;
+#endif
+}
+void pc_world_commerce_prepare_entry(ACTOR* actor,GAME_PLAY* play) {
+#ifdef ACO_DEV_EAST
+    int service_id;
+    if(!actor || !play || !g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG)return;
+    service_id=service_for_actor(actor);
+    if(service_id!=PC_WORLD_SERVICE_NIGHT_MARKET &&
+       service_id!=PC_WORLD_SERVICE_MARITIME_OUTFITTER &&
+       service_id!=PC_WORLD_SERVICE_CUSTOMIZATION)return;
+    s_service_context=service_id;
+    s_service_scene=service_id==PC_WORLD_SERVICE_CUSTOMIZATION?SCENE_NEEDLEWORK:SCENE_SHOP0;
+#else
+    (void)actor;(void)play;
+#endif
+}
+int pc_world_commerce_override_npc(mActor_name_t* name) {
+#ifdef ACO_DEV_EAST
+    if(name && g_pc_dev_east && s_service_context==PC_WORLD_SERVICE_NIGHT_MARKET &&
+       Save_Get(scene_no)==SCENE_SHOP0 && *name==SP_NPC_SHOP_MASTER) {
+        *name=SP_NPC_MAMEDANUKI0;
+        return 1;
+    }
+#else
+    (void)name;
+#endif
+    return 0;
+}
+int pc_world_commerce_is_night_vendor(const ACTOR* actor) {
+#ifdef ACO_DEV_EAST
+    return actor && g_pc_dev_east && s_service_context==PC_WORLD_SERVICE_NIGHT_MARKET &&
+           Save_Get(scene_no)==SCENE_SHOP0 && actor->part==ACTOR_PART_NPC &&
+           actor->npc_id==SP_NPC_MAMEDANUKI0;
+#else
+    (void)actor;
+    return 0;
+#endif
+}
 void pc_world_commerce_tick(GAME_PLAY* play) {
 #ifdef ACO_DEV_EAST
-    if(!g_pc_dev_east || !play || Save_Get(scene_no)!=SCENE_FG || mEv_IsTitleDemo())return;
+    if(!g_pc_dev_east || !play || mEv_IsTitleDemo())return;
     commerce_play=play;
-    for(int part=0;part<ACTOR_PART_NUM;part++)for(ACTOR* a=play->actor_info.list[part].actor;a;a=a->next_actor)
-        if(service_for_actor(a))a->mv_proc=commerce_structure_wait;
     if(design_pending && !g_pc_paused && play->submenu.mode==mSM_MODE_IDLE) {
         design_pending=0;
         mSM_open_submenu(&play->submenu,mSM_OVL_NEEDLEWORK,mNW_OPEN_DESIGN,Common_Get(player_no));
         return;
     }
-    if(g_pc_paused || pc_world_shops_active() || play->submenu.mode!=mSM_MODE_IDLE ||
-       play->fb_mode!=FBDEMO_MODE_NONE || play->fb_wipe_mode!=WIPE_MODE_NONE || mDemo_Get_talk_actor())return;
+    int scene=Save_Get(scene_no);
+    if(scene==SCENE_FG) {
+        /* The native storefront door actor handles entry and writes its own
+         * service-specific return point. Clear only after the interior exit. */
+        if(s_service_context && (play->fb_mode!=FBDEMO_MODE_NONE || play->fb_wipe_mode!=WIPE_MODE_NONE ||
+           play->fb_fade_type!=FADE_TYPE_NONE))return;
+        s_service_context=0;
+        s_service_scene=-1;
+        return;
+    }
+    /* Disable the native seller's talk/buy state before NPC actor movement
+     * runs. The shop goods actor is visual-only; purchases are offered solely
+     * by the PC transaction catalog in repurposed service interiors. */
+    if (s_service_context && scene == s_service_scene) {
+        for (ACTOR* a=play->actor_info.list[ACTOR_PART_NPC].actor; a; a=a->next_actor) {
+            if(scene==SCENE_SHOP0 && a->npc_id!=SP_NPC_SHOP_MASTER &&
+            !(s_service_context==PC_WORLD_SERVICE_NIGHT_MARKET && a->npc_id==SP_NPC_MAMEDANUKI0))continue;
+            a->mv_proc=commerce_seller_idle;
+        }
+    }
+    if(!s_service_context || scene!=s_service_scene || g_pc_paused || pc_world_shops_active() ||
+       play->submenu.mode!=mSM_MODE_IDLE || play->fb_mode!=FBDEMO_MODE_NONE ||
+       play->fb_wipe_mode!=WIPE_MODE_NONE || mDemo_Get_talk_actor())return;
     PLAYER_ACTOR* p=get_player_actor_withoutCheck(play);
-    if(p && chkTrigger(BUTTON_A) && pc_world_shops_try_open_at(play,p->actor_class.world.position.x,p->actor_class.world.position.z)) {
+    if(!p)return;
+    ACTOR* seller=NULL;
+    float best=190.0f*190.0f;
+    for(ACTOR* a=play->actor_info.list[ACTOR_PART_NPC].actor;a;a=a->next_actor) {
+        if(scene==SCENE_SHOP0 && a->npc_id!=SP_NPC_SHOP_MASTER &&
+           !(s_service_context==PC_WORLD_SERVICE_NIGHT_MARKET && a->npc_id==SP_NPC_MAMEDANUKI0))continue;
+        float dx=p->actor_class.world.position.x-a->world.position.x;
+        float dz=p->actor_class.world.position.z-a->world.position.z;
+        float d=dx*dx+dz*dz;
+        if(d<best){best=d;seller=a;}
+    }
+    if(!seller)return;
+    /* Disable vanilla Nook/tailor dialogue in these cloned service rooms so
+     * every sale remains routed through the PC transaction layer. */
+    if(chkTrigger(BUTTON_A)) {
+        if(s_service_context==PC_WORLD_SERVICE_NIGHT_MARKET)pc_world_shops_open_night_market_now();
+        else if(s_service_context==PC_WORLD_SERVICE_MARITIME_OUTFITTER)pc_maritime_outfitter_open();
+        else pc_customization_shop_open();
         play->game.pads[0].on.button&=~BUTTON_A;play->game.pads[0].now.button&=~BUTTON_A;
     }
 #else
@@ -155,11 +247,11 @@ void pc_world_commerce_tick(GAME_PLAY* play) {
 void pc_world_commerce_hud(GAME* game) {
 #ifdef ACO_DEV_EAST
     if(!g_pc_dev_east || !commerce_play || game!=&commerce_play->game || g_pc_paused ||
-       Save_Get(scene_no)!=SCENE_FG || commerce_play->submenu.mode!=mSM_MODE_IDLE)return;
+       (Save_Get(scene_no)!=SCENE_FG && !s_service_context) || commerce_play->submenu.mode!=mSM_MODE_IDLE)return;
     PLAYER_ACTOR* p=get_player_actor_withoutCheck(commerce_play);if(!p)return;
     const char* notice=pc_world_progression_notice_at(p->actor_class.world.position.x,p->actor_class.world.position.z);
-    pc_world_service_anchor_t anchors[8];int count=pc_world_service_anchors_get(commerce_play,anchors,8);
-    const char* names[]={"","Night Market - interact to browse","Maritime Outfitter - interact to browse","Color & Cloth Studio - interact to browse"};
+    pc_world_service_anchor_t anchors[8];int count=Save_Get(scene_no)==SCENE_FG?pc_world_service_anchors_get(commerce_play,anchors,8):0;
+    const char* names[]={"","Night Market - enter to browse","Maritime Outfitter - enter to browse","Color & Cloth Studio - enter to browse"};
     if(!notice)for(int i=0;i<count;i++) {
         float dx=p->actor_class.world.position.x-anchors[i].x,dz=p->actor_class.world.position.z-anchors[i].z;
         if(dx*dx+dz*dz<anchors[i].interact_radius*anchors[i].interact_radius){notice=names[anchors[i].service_id];break;}
@@ -170,96 +262,7 @@ void pc_world_commerce_hud(GAME* game) {
 #endif
 }
 
-#ifdef ACO_DEV_EAST
-#include "sys_matrix.h"
-#include "m_rcp.h"
-#include "graph.h"
-#include "libforest/gbi_extensions.h"
-typedef struct {Vtx vertices[512];Gfx commands[512];int nv,nc;} ShopFacade;
-static ShopFacade facades[3];static int facades_ready;
-static void facade_color(ShopFacade* f,int r,int g,int b) {
-    Gfx* p=f->commands+f->nc;gDPSetPrimColor(p,0,255,r,g,b,255);f->nc++;
-}
-static void facade_quad(ShopFacade* f,float x0,float y0,float z0,float x1,float y1,float z1,
-                        float x2,float y2,float z2,float x3,float y3,float z3) {
-    float v[4][3]={{x0,y0,z0},{x1,y1,z1},{x2,y2,z2},{x3,y3,z3}};
-    Vtx* verts=f->vertices+f->nv;
-    for(int i=0;i<4;i++){memset(verts+i,0,sizeof(*verts));for(int j=0;j<3;j++)verts[i].v.ob[j]=(short)lroundf(v[i][j]*.55f*16);verts[i].n.a=255;}
-    Gfx* p=f->commands+f->nc;gSPVertex(p++,verts,4,0);gSPNTrianglesInit_5b(p++,2,0,1,2,0,2,3,0,0,0);
-    f->nc=(int)(p-f->commands);f->nv+=4;
-}
-static void facade_box(ShopFacade* f,float x,float y,float z,float w,float h,float d) {
-    facade_quad(f,x,y,z,x+w,y,z,x+w,y+h,z,x,y+h,z);
-    facade_quad(f,x,y,z+d,x+w,y,z+d,x+w,y+h,z+d,x,y+h,z+d);
-    facade_quad(f,x,y,z,x,y,z+d,x,y+h,z+d,x,y+h,z);
-    facade_quad(f,x+w,y,z,x+w,y,z+d,x+w,y+h,z+d,x+w,y+h,z);
-    facade_quad(f,x,y+h,z,x+w,y+h,z,x+w,y+h,z+d,x,y+h,z+d);
-}
-static void build_facade(int kind) {
-    ShopFacade* f=facades+kind;Gfx* p=f->commands;
-    gDPPipeSync(p++);gSPTexture(p++,0,0,0,0,G_OFF);
-    gDPSetCycleType(p++,G_CYC_1CYCLE);gDPSetCombineMode(p++,G_CC_PRIMITIVE,G_CC_PRIMITIVE);
-    gDPSetRenderMode(p++,G_RM_AA_ZB_OPA_SURF,G_RM_AA_ZB_OPA_SURF2);
-    gSPLoadGeometryMode(p++,G_ZBUFFER|G_SHADE);f->nc=(int)(p-f->commands);
-    static const int themes[3][3]={{65,52,101},{35,83,111},{163,76,61}};
-    /* Slender wood supports keep the counter canopy grounded beside its door. */
-    facade_color(f,91,65,43);
-    facade_box(f,-126,0,77,6,137,6);
-    facade_box(f,120,0,77,6,137,6);
-    for(int stripe=0;stripe<6;stripe++) {
-        const int* c=themes[kind];facade_color(f,stripe%2?225:c[0],stripe%2?215:c[1],stripe%2?175:c[2]);
-        float x=-132+stripe*44;
-        facade_quad(f,x,161,12,x+44,161,12,x+44,137,91,x,137,91);
-        facade_quad(f,x,137,91,x+44,137,91,x+44,120,91,x,120,91);
-    }
-    facade_color(f,71,48,34);facade_box(f,-93,168,15,186,47,9);
-    facade_color(f,220,192,135);facade_box(f,-85,174,25,170,35,2);
-    if(kind==0) { /* Moon and two hanging lanterns. */
-        facade_color(f,245,198,77);
-        for(int i=0;i<12;i++) {
-            float a=(72+i*18)*.0174532925f,b=(90+i*18)*.0174532925f;
-            float c=(108+i*12)*.0174532925f,d=(120+i*12)*.0174532925f;
-            facade_quad(f,13*cosf(a),191+13*sinf(a),29,
-                13*cosf(b),191+13*sinf(b),29,
-                8+13*cosf(d),191+13*sinf(d),29,
-                8+13*cosf(c),191+13*sinf(c),29);
-        }
-        for(int side=-1;side<=1;side+=2){
-            facade_color(f,74,48,36);facade_box(f,side*104-2,109,67,4,46,4);
-            facade_color(f,246,184,72);facade_box(f,side*104-10,97,67,20,27,18);
-            facade_color(f,73,43,33);facade_box(f,side*104-12,121,65,24,5,22);
-        }
-    } else if(kind==1) { /* Sailboat sign. */
-        facade_color(f,30,78,108);
-        facade_quad(f,-31,181,29,32,181,29,20,175,29,-20,175,29);
-        facade_quad(f,-3,183,29,-3,205,29,-29,183,29,-29,183,29);
-        facade_quad(f,2,183,29,2,204,29,26,183,29,26,183,29);
-    } else { /* Painted color swatches. */
-        static const int colors[5][3]={{181,50,54},{220,167,47},{77,139,81},{65,113,171},{139,83,161}};
-        for(int i=0;i<5;i++){facade_color(f,colors[i][0],colors[i][1],colors[i][2]);facade_box(f,-58+i*24,183,29,18,17,2);}
-    }
-    p=f->commands+f->nc;gSPEndDisplayList(p++);f->nc=(int)(p-f->commands);
-}
-#endif
-void pc_world_commerce_draw(GAME_PLAY* play) {
-#ifdef ACO_DEV_EAST
-    if(!g_pc_dev_east || !play || Save_Get(scene_no)!=SCENE_FG)return;
-    if(!facades_ready){for(int i=0;i<3;i++)build_facade(i);facades_ready=1;}
-    PLAYER_ACTOR* player=get_player_actor_withoutCheck(play);if(!player)return;
-    pc_world_service_anchor_t anchors[8];int count=pc_world_service_anchors_get(play,anchors,8);
-    for(int i=0;i<count;i++) {
-        float dx=anchors[i].x-player->actor_class.world.position.x,dz=anchors[i].z-player->actor_class.world.position.z;
-        if(dx*dx+dz*dz>1500*1500)continue;
-        xyz_t pos={anchors[i].x,0,anchors[i].z};pos.y=mCoBG_GetBgY_OnlyCenter_FromWpos2(pos,0);
-        Matrix_push();Matrix_translate(pos.x,pos.y,pos.z,MTX_LOAD);Matrix_scale(.0625f,.0625f,.0625f,MTX_MULT);
-        OPEN_DISP(play->game.graph);
-        gSPMatrix(NEXT_POLY_OPA_DISP,_Matrix_to_Mtx_new(play->game.graph),G_MTX_NOPUSH|G_MTX_LOAD|G_MTX_MODELVIEW);
-        gSPDisplayList(NEXT_POLY_OPA_DISP,facades[anchors[i].service_id-1].commands);
-        CLOSE_DISP(play->game.graph);Matrix_pull();
-    }
-#else
-    (void)play;
-#endif
-}
+/* Storefronts use their native meshes and per-building texture variants. */
+void pc_world_commerce_draw(GAME_PLAY* play) { (void)play; }
 
 #endif /* !PC_WORLD_SHOP_TEST */

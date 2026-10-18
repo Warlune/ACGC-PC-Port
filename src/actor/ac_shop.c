@@ -11,6 +11,9 @@
 #include "sys_matrix.h"
 #include "m_rcp.h"
 #include "libforest/gbi_extensions.h"
+#ifdef TARGET_PC
+#include "pc_world_shop_catalogs.h"
+#endif
 
 // clang-format off
 enum {
@@ -100,7 +103,11 @@ static void aSHOP_actor_ct(ACTOR* actor, GAME* game) {
     actor->talk_distance = 80.0f;
     actor->cull_width = 550.0f;
     actor->cull_radius = 550.0f;
-    if (mSP_ShopOpen() != 2) {
+    if (mSP_ShopOpen() != 2
+#ifdef TARGET_PC
+        && !pc_world_commerce_is_repurposed_shop_actor(actor)
+#endif
+    ) {
         action = aSHOP_ACTION_CLOSE_WAIT;
     }
 

@@ -9,6 +9,12 @@ int pc_world_commerce_dev_spawn(int service,float* x,float* z);
 void pc_maritime_outfitter_open(void);
 void pc_customization_shop_open(void);
 void pc_world_commerce_tick(struct game_play_s* play);
+/* Called by native building door actors after they write their return-door data. */
+void pc_world_commerce_prepare_entry(struct actor_s* actor, struct game_play_s* play);
+int pc_world_commerce_is_repurposed_shop_actor(struct actor_s* actor);
+int pc_world_commerce_hide_native_stock(void);
+int pc_world_commerce_override_npc(mActor_name_t* name);
+int pc_world_commerce_is_night_vendor(const struct actor_s* actor);
 void pc_world_commerce_draw(struct game_play_s* play);
 void pc_world_commerce_hud(struct game_s* game);
 pc_shop_result_t pc_customization_print_pattern(Private_c* player,int slot,u32 price);

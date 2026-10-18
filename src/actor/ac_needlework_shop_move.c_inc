@@ -1,3 +1,7 @@
+#ifdef TARGET_PC
+#include "pc_world_shop_catalogs.h"
+#endif
+
 // clang-format off
 static Door_data_c aNW_needlework_shop_door_data = {
     SCENE_NEEDLEWORK,
@@ -263,6 +267,9 @@ static void aNW_open_door(STRUCTURE_ACTOR* shop, GAME_PLAY* play) {
     if (cKF_SkeletonInfo_R_play(&shop->keyframe) == TRUE) {
         if (shop->request_type == 3) {
             aNW_rewrite_out_data(shop, play);
+#ifdef TARGET_PC
+            pc_world_commerce_prepare_entry(&shop->actor_class, play);
+#endif
             goto_other_scene(play, &aNW_needlework_shop_door_data, FALSE);
             aNW_setup_action(shop, aNW_ACTION_OPEN_UNKNOWN);
             mDemo_End((ACTOR*)shop);

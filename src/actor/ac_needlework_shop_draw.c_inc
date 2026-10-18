@@ -1,4 +1,7 @@
 extern Gfx obj_s_tailor_window_model[];
+#ifdef TARGET_PC
+#include "pc_world_art.h"
+#endif
 extern Gfx obj_w_tailor_window_model[];
 
 static int aNW_actor_draw_before(GAME* game, cKF_SkeletonInfo_R_c* keyframe, int joint_idx, Gfx** joint_shape,
@@ -11,6 +14,9 @@ static int aNW_actor_draw_before(GAME* game, cKF_SkeletonInfo_R_c* keyframe, int
 
     graph = game->graph;
     shop = (STRUCTURE_ACTOR*)arg;
+#ifdef TARGET_PC
+    *joint_shape=pc_world_art_model(shop,*joint_shape);
+#endif
     if (joint_idx == 5) {
         OPEN_DISP(graph);
         gfx = NOW_POLY_OPA_DISP;
@@ -96,6 +102,9 @@ static void aNW_actor_draw(ACTOR* actor, GAME* game) {
     mtx = GRAPH_ALLOC_TYPE(graph, Mtx, (u32)keyframe->skeleton->num_shown_joints);
     if (mtx != NULL) {
         pal = Common_Get(clip).structure_clip->get_pal_segment_proc(aSTR_PAL_TAILOR);
+#ifdef TARGET_PC
+        pal=pc_world_art_palette(actor,pal);
+#endif
         if (mtx != NULL) {
             _texture_z_light_fog_prim(graph);
 

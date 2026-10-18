@@ -1,3 +1,7 @@
+#ifdef TARGET_PC
+#include "pc_world_shop_catalogs.h"
+#endif
+
 extern cKF_Animation_R_c cKF_ba_r_obj_s_shop1;
 extern cKF_Animation_R_c cKF_ba_r_obj_w_shop1;
 
@@ -188,6 +192,11 @@ static int aSHOP_ctrl_light(STRUCTURE_ACTOR* shop) {
 
     now_sec = Common_Get(time.now_sec);
     res = FALSE;
+#ifdef TARGET_PC
+    if (pc_world_commerce_is_repurposed_shop_actor((ACTOR*)shop)) {
+        return TRUE;
+    }
+#endif
     if (mEv_CheckArbeit() == TRUE) {
         if ((mSP_ShopOpen() == mSP_SHOP_STATUS_OPEN || mSP_ShopOpen() == mSP_SHOP_STATUS_OPENEVENT)) {
             if ((now_sec >= (18 * mTM_SECONDS_IN_HOUR) || now_sec < (5 * mTM_SECONDS_IN_HOUR))) {
@@ -214,6 +223,13 @@ static void aSHOP_close_wait(STRUCTURE_ACTOR* shop, GAME_PLAY* play) {
         return;
     }
 
+#ifdef TARGET_PC
+    if (pc_world_commerce_is_repurposed_shop_actor(actor)) {
+        aSHOP_setup_action(shop, aSHOP_ACTION_OPEN_DOOR);
+        return;
+    }
+#endif
+
     if ((mSP_ShopOpen() == mSP_SHOP_STATUS_OPEN) || (mSP_ShopOpen() == mSP_SHOP_STATUS_OPENEVENT)) {
         aSHOP_setup_action(shop, aSHOP_ACTION_OPEN_DOOR);
         return;
@@ -238,7 +254,11 @@ static void aSHOP_open_wait(STRUCTURE_ACTOR* shop, GAME_PLAY* play) {
         return;
     }
 
-    if (mSP_ShopOpen() != mSP_SHOP_STATUS_OPEN && mSP_ShopOpen() != mSP_SHOP_STATUS_OPENEVENT) {
+    if (mSP_ShopOpen() != mSP_SHOP_STATUS_OPEN && mSP_ShopOpen() != mSP_SHOP_STATUS_OPENEVENT
+#ifdef TARGET_PC
+        && !pc_world_commerce_is_repurposed_shop_actor(actor)
+#endif
+    ) {
         sAdo_OngenTrgStart(8, &actor->world.position);
         aSHOP_setup_action(shop, aSHOP_ACTION_CLOSE_DOOR);
         return;
@@ -281,6 +301,9 @@ static void aSHOP_pl_into_wait(STRUCTURE_ACTOR* shop, GAME_PLAY* play) {
     }
 
     aSHOP_rewrite_out_data(&shop->actor_class, play);
+#ifdef TARGET_PC
+    pc_world_commerce_prepare_entry(&shop->actor_class, play);
+#endif
     goto_other_scene(play, &aSHOP_shop_door_data, FALSE);
 }
 

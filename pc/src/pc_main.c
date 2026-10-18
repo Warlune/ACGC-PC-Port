@@ -323,6 +323,12 @@ int main(int argc, char* argv[]) {
         else if (strcmp(argv[i], "--dev-east") == 0) { g_pc_dev_east_spawn=2; }
         else if (strcmp(argv[i], "--dev-sw") == 0) { g_pc_dev_east_spawn=3; }
         else if (strcmp(argv[i], "--dev-se") == 0) { g_pc_dev_east_spawn=4; }
+        else if (strcmp(argv[i], "--dev-gate-preview") == 0) { g_pc_dev_east_spawn=7; }
+        else if (strcmp(argv[i], "--dev-gate-test-z") == 0 && i+1<argc) {
+            extern int g_pc_dev_gate_test_z;
+            g_pc_dev_gate_test_z=atoi(argv[++i]);
+            if(g_pc_dev_gate_test_z<3760 || g_pc_dev_gate_test_z>4200){fprintf(stderr,"Gate test z must be between 3760 and 4200.\n");return 1;}
+        }
         else if (strcmp(argv[i], "--dev-outer-west") == 0) { g_pc_dev_east_spawn=5; }
         else if (strcmp(argv[i], "--dev-outer-east") == 0) { g_pc_dev_east_spawn=6; }
         else if (strcmp(argv[i], "--dev-progress-stage") == 0 && i+1<argc) {

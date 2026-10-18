@@ -206,6 +206,9 @@ static int aNPC_actor_draw_after(GAME* game, cKF_SkeletonInfo_R_c* keyframe, int
     return TRUE;
 }
 
+#ifdef TARGET_PC
+#include "pc_world_art.h"
+#endif
 static void aNPC_actor_draw_sub(ACTOR* actorx, GAME* game) {
     // clang-format off
     static Gfx xlu_env_disp[] = {
@@ -275,7 +278,11 @@ static void aNPC_actor_draw_sub(ACTOR* actorx, GAME* game) {
         }
 
         gSPSegment(gfx++, ANIME_4_TXT_SEG, draw_tex_p->texture);
+#ifdef TARGET_PC
+        gDPLoadTLUT_Dolphin(gfx++, 15, 16, 1, pc_world_art_vendor_palette(actorx,draw_tex_p->palette));
+#else
         gDPLoadTLUT_Dolphin(gfx++, 15, 16, 1, draw_tex_p->palette);
+#endif
 
         if ((int)nactorx->draw.cloth_idx != aNPC_CLOTH_IDX_NONE) {
             u8* tex_p;

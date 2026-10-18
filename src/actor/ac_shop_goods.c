@@ -1,4 +1,7 @@
 #include "ac_shop_goods.h"
+#ifdef TARGET_PC
+#include "pc_world_shop_catalogs.h"
+#endif
 
 #include "m_common_data.h"
 #include "m_player_lib.h"
@@ -528,7 +531,16 @@ static void aSG_DrawGoodsPicture(ACTOR* actorx, GAME* game) {
 static void Shop_Goods_Actor_draw(ACTOR* actorx, GAME* game) {
     _texture_z_light_fog_prim(game->graph);
     Shop_Goods_draw_ta_set(game);
+#ifdef TARGET_PC
+    /* The cloned interiors use PC transaction catalogs; hide the unrelated
+     * daily Nook stock rendered from the native shop map, but keep player-drop
+     * props visible. The center town never sets this service context. */
+    if (!pc_world_commerce_hide_native_stock()) {
+        aSG_DrawGoodsPicture(actorx, game);
+    }
+#else
     aSG_DrawGoodsPicture(actorx, game);
+#endif
     Shop_Goods_draw_ta_clr(game);
     Shop_Goods_Actor_drop_draw(actorx, game);
 }

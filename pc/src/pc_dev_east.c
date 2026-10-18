@@ -70,7 +70,8 @@ int g_pc_dev_test_stick;
 int g_pc_dev_test_stick_y;
 int g_pc_dev_unlock_regions;
 int g_pc_dev_progress_stage=-1;
-#define PC_DEV_GATE_FIRST_ROW 6
+int g_pc_dev_gate_test_z=4020;
+#define PC_DEV_GATE_FIRST_ROW 5
 #define PC_DEV_GATE_LAST_ROW 6
 static u8 gate_saved_attr[2][2][PC_DEV_GATE_LAST_ROW - PC_DEV_GATE_FIRST_ROW + 1][UT_Z_NUM];
 static int gate_saved;
@@ -99,6 +100,7 @@ static void pc_dev_gate_save_collision(void) {
             mFM_bg_info_c* bg=&g_fdinfo->block_info[bz*BLOCK_X_NUM+bx].bg_info;
             int ux=side?0:UT_X_NUM-1;
             for(int uz=0;uz<UT_Z_NUM;uz++) {
+                if(bz==5 && uz<14)continue;
                 gate_saved_attr[seam_idx][side][bz-PC_DEV_GATE_FIRST_ROW][uz]=bg->collision[uz][ux].data.unit_attribute;
             }
         }
@@ -122,6 +124,10 @@ void pc_dev_gate_refresh(void) {
             int ux=side?0:UT_X_NUM-1;
             u8 wall_attr=side?mCoBG_ATTRIBUTE_34:mCoBG_ATTRIBUTE_33;
             for(int uz=0;uz<UT_Z_NUM;uz++) {
+                /* Extend the closed foot barrier through the two flat foot
+                 * cells at the end of the row-5 cliff, leaving the mountain
+                 * face itself unchanged. */
+                if(bz==5 && uz<14)continue;
                 bg->collision[uz][ux].data.unit_attribute=pc_world_progression_gate_collision_attribute(
                     unlocked,gate_saved_attr[seam_idx][side][bz-PC_DEV_GATE_FIRST_ROW][uz],wall_attr);
             }
@@ -199,7 +205,17 @@ void pc_dev_coast_field(void) {
 }
 extern int pc_save_loaded;
 static int dev_player;
+static int dev_started;
 static void choose_spawn(void) {
+    if(g_pc_dev_east_spawn==7) {
+        /* Visible gate-art QA: stand close to the locked seam on its approach
+         * side, or at a requested along-shore test coordinate. */
+        int west_gate=g_pc_dev_progress_stage==1;
+        int seam=ACO_TOWN_X0+(west_gate?7:14);
+        Common_Set(door_data.exit_position.x,seam*640+(west_gate?100:-100));
+        Common_Set(door_data.exit_position.z,g_pc_dev_gate_test_z);
+        return;
+    }
     if(g_pc_dev_coast_test==2) {
         Common_Set(door_data.exit_position.x,(ACO_TOWN_X0+16)*640+320);
         Common_Set(door_data.exit_position.z,4220);
@@ -212,13 +228,13 @@ static void choose_spawn(void) {
     }
     if(g_pc_dev_east_spawn>=5) {
         Common_Set(door_data.exit_position.x,ACO_TOWN_X0*640+(g_pc_dev_east_spawn==5?660:21*640-660));
-        Common_Set(door_data.exit_position.z,4020);
+        Common_Set(door_data.exit_position.z,g_pc_dev_gate_test_z);
         return;
     }
     if(g_pc_dev_east_spawn>=3) {
         /* Start on the center-town side, with the corner in view. */
         Common_Set(door_data.exit_position.x,ACO_TOWN_X0*640+(g_pc_dev_east_spawn==3?5220:8220));
-        Common_Set(door_data.exit_position.z,4020);
+        Common_Set(door_data.exit_position.z,g_pc_dev_gate_test_z);
         return;
     }
     int offset=ACO_TOWN_X0+(g_pc_dev_east_spawn==1?0:g_pc_dev_east_spawn==2?14:7);
@@ -241,6 +257,7 @@ static void choose_spawn(void) {
 }
 void pc_dev_east_prepare(void) {
     if(!g_pc_dev_east)return;
+    dev_started=0;
     if(!pc_save_loaded || sizeof(Save)!=0x38000) {
         fprintf(stderr,"[DevWorld] Converted triple-town development save required.\n");exit(1);
     }
@@ -267,12 +284,16 @@ void pc_dev_east_prepare(void) {
     Common_Set(door_data.exit_position.y,0);
     Common_Set(door_data.exit_orientation,2);Common_Set(door_data.extra_data,0);
     choose_spawn();
-    printf("[DevWorld] Existing resident %d; region=%s spawn=(%d,%d); 31 columns, wider enclosed ocean\n",
-        dev_player,g_pc_dev_east_spawn==1?"WEST":g_pc_dev_east_spawn==2?"EAST":"CENTER",
+            printf("[DevWorld] Existing resident %d; region=%s spawn=(%d,%d); 31 columns, wider enclosed ocean\n",
+                dev_player,g_pc_dev_east_spawn==1?"WEST":g_pc_dev_east_spawn==2?"EAST":"CENTER",
         Common_Get(door_data.exit_position.x),Common_Get(door_data.exit_position.z));
 }
 void pc_dev_east_start(GAME_PLAY* play) {
     if(!g_pc_dev_east || Save_Get(scene_no)!=SCENE_FG)return;
+    /* Re-entering town from a shop must keep the native exit door position.
+     * Resident renewal and the development spawn are boot-only operations. */
+    if(dev_started) {pc_dev_gate_invalidate_collision();return;}
+    dev_started=1;
     s32 channel=0;
     if(mCD_InitGameStart_bg(dev_player,dev_player,mCD_START_COND_1,&channel)!=mCD_TRANS_ERR_NONE || !Common_Get(now_private)) {
         fprintf(stderr,"[DevWorld] Resident initialization failed\n");exit(1);
@@ -306,7 +327,9 @@ void pc_dev_coast_tick(GAME_PLAY* play) {
             if(stop_z-start_z<20) {fprintf(stderr,"[BeachTest] FAIL: no meaningful approach %.1f -> %.1f\n",start_z,stop_z);exit(1);}
         }
         g_pc_dev_test_stick_y=frames<360?-80:80;
-        if(++frames==450) {
+        /* Turning around in native controls takes longer than the first
+         * short shore sample; give the return walk 240 frames. */
+        if(++frames==600) {
             if(stop_z-p.z<40) {fprintf(stderr,"[BeachTest] FAIL: unable to retreat %.1f -> %.1f height=%.1f\n",stop_z,p.z,p.y);exit(1);}
             printf("[BeachTest] PASS: approached shore from %.1f, stopped at %.1f, retreated to %.1f\n",start_z,stop_z,p.z);
             fflush(stdout);exit(0);
@@ -317,7 +340,8 @@ void pc_dev_coast_tick(GAME_PLAY* play) {
      * the ordinary dry-shore spawn and PAD input, exercising live collision. */
     if(g_pc_dev_progress_stage==0 || g_pc_dev_progress_stage==1) {
         static int gate_test_phase,gate_test_frames,gate_test_seam;
-        static float gate_test_start;
+        static int gate_test_stall_frames;
+        static float gate_test_start,gate_test_last_x;
         PLAYER_ACTOR* gate_player=get_player_actor_withoutCheck(play);
         if(!gate_player || !g_fdinfo)return;
         int direction=g_pc_dev_progress_stage==0?1:-1;
@@ -332,12 +356,14 @@ void pc_dev_coast_tick(GAME_PLAY* play) {
              * position so this test includes ordinary field loading. */
             gate_test_start=gate_pos->x;
             float approach=(seam_x-gate_test_start)*direction;
-            if(approach<500.0f || approach>1000.0f || fabsf(gate_pos->z-4020.0f)>180.0f) {
+            if(approach<500.0f || approach>1000.0f || fabsf(gate_pos->z-g_pc_dev_gate_test_z)>60.0f) {
                 printf("[GateTest] FAIL: unexpected native spawn x=%.1f z=%.1f seam=%d\n",
                     gate_pos->x,gate_pos->z,seam);
                 fflush(stdout);exit(1);
             }
             gate_test_frames=0;
+            gate_test_stall_frames=0;
+            gate_test_last_x=gate_pos->x;
             g_pc_dev_test_stick=direction*80;
             g_pc_dev_test_stick_y=0;
             gate_test_phase=1;
@@ -348,36 +374,58 @@ void pc_dev_coast_tick(GAME_PLAY* play) {
         }
         if(gate_test_phase==1) {
             gate_test_frames++;
-            if(gate_test_frames<600)return;
             float progress=(gate_pos->x-gate_test_start)*direction;
             int crossed=direction>0?gate_pos->x>=seam_x:gate_pos->x<=seam_x;
-            if(progress<200.0f || progress>1000.0f || crossed ||
-               gate_pos->y>80.0f || Save_Get(scene_no)!=SCENE_FG) {
+            if(fabsf(gate_pos->x-gate_test_last_x)<0.25f)gate_test_stall_frames++;
+            else gate_test_stall_frames=0;
+            gate_test_last_x=gate_pos->x;
+            if(crossed || gate_pos->y>80.0f || Save_Get(scene_no)!=SCENE_FG) {
                 printf("[GateTest] FAIL: approach check crossed=%d x=%.1f progress=%.1f\n",
                     crossed,gate_pos->x,progress);
                 fflush(stdout);exit(1);
             }
-            gate_test_start=gate_pos->x;
-            gate_test_phase=2;
-            gate_test_frames=0;
-            g_pc_dev_test_stick=-direction*80;
-            return;
+            if(progress>=500.0f && gate_test_stall_frames>=45) {
+                float distance=fabsf(seam_x-gate_pos->x);
+                if(distance>100.0f) {
+                    printf("[GateTest] FAIL: stalled %.1f units before seam=%d at x=%.1f\n",
+                        distance,seam,gate_pos->x);
+                    fflush(stdout);exit(1);
+                }
+                gate_test_start=gate_pos->x;
+                gate_test_phase=2;
+                gate_test_frames=0;
+                g_pc_dev_test_stick=-direction*80;
+                printf("[GateTest] blocked %.1f units before seam=%d at x=%.1f; reversing input\n",
+                    distance,seam,gate_pos->x);
+                fflush(stdout);
+                return;
+            }
+            if(gate_test_frames>=2400) {
+                printf("[GateTest] FAIL: never reached seam=%d; x=%.1f progress=%.1f\n",
+                    seam,gate_pos->x,progress);
+                fflush(stdout);exit(1);
+            }
         }
         if(gate_test_phase==2) {
             gate_test_frames++;
-            if(gate_test_frames<60)return;
             float retreat=(gate_pos->x-gate_test_start)*-direction;
-            if(retreat<40.0f || gate_pos->y>80.0f || Save_Get(scene_no)!=SCENE_FG) {
-                printf("[GateTest] FAIL: could not retreat from seam=%d (%.1f units)\n",
-                    gate_test_seam,retreat);
+            if(gate_pos->y>80.0f || Save_Get(scene_no)!=SCENE_FG) {
+                printf("[GateTest] FAIL: left ground while retreating from seam=%d\n",gate_test_seam);
                 fflush(stdout);exit(1);
             }
-            printf("[GateTest] PASS: stage=%d closed seam=%d allowed approach and retreat; stopped at x=%.1f\n",
-                g_pc_dev_progress_stage,gate_test_seam,gate_test_start);
-            fflush(stdout);
-            gate_test_phase=3;
-            g_pc_dev_test_stick=0;
-            return;
+            if(retreat>=40.0f) {
+                printf("[GateTest] PASS: stage=%d closed seam=%d blocked at x=%.1f and retreated %.1f units\n",
+                    g_pc_dev_progress_stage,gate_test_seam,gate_test_start,retreat);
+                fflush(stdout);
+                gate_test_phase=3;
+                g_pc_dev_test_stick=0;
+                return;
+            }
+            if(gate_test_frames>=240) {
+                printf("[GateTest] FAIL: could not retreat from seam=%d (%.1f units; x=%.1f)\n",
+                    gate_test_seam,retreat,gate_pos->x);
+                fflush(stdout);exit(1);
+            }
         }
         return;
     }

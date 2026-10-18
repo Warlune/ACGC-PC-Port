@@ -1,3 +1,7 @@
+#ifdef TARGET_PC
+#include "pc_world_shop_catalogs.h"
+#endif
+
 static int aNPC_actor_birth_check(ACTOR* actorx, GAME* game) {
     GAME_PLAY* play = (GAME_PLAY*)game;
     Actor_info* info = &play->actor_info;
@@ -477,6 +481,11 @@ static int aNPC_setupActor_proc(GAME_PLAY* play, mActor_name_t name, s8 idx, int
                 case SP_NPC_CONV_MASTER:
                 case SP_NPC_SUPER_MASTER:
                 case SP_NPC_DEPART_MASTER:
+#ifdef TARGET_PC
+                    if (pc_world_commerce_override_npc(&name)) {
+                        break;
+                    }
+#endif
                     if (mEv_CheckFirstJob() == TRUE) {
                         name = SP_NPC_RCN_GUIDE2 + (name - SP_NPC_SHOP_MASTER);
                     } else if (Common_Get(tanuki_shop_status) == mSP_TANUKI_SHOP_STATUS_FUKUBIKI) {
