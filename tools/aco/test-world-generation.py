@@ -3,6 +3,7 @@ import argparse,json,runpy,struct,subprocess
 from pathlib import Path
 here=Path(__file__).resolve().parent
 connect=runpy.run_path(str(here/'world-generation.py'))['coastal_connections']
+normalize_shoreline=runpy.run_path(str(here/'world-generation.py'))['normalize_shoreline']
 Disc=runpy.run_path(str(here/'disc-image.py'))['Disc']
 
 if __name__=='__main__':
@@ -37,6 +38,21 @@ if __name__=='__main__':
         assert len(routes)==2
         assert connect(body,layout,templates,here.parents[1])==routes and bytes(body)==after
         if deep and pad:
+            if seed==0:
+                fixture=bytearray(body);x=pad+16
+                cp=layout['combi_table']+(6*width+x)*2
+                flat=next(i for i,e in enumerate(entries) if e[2]=='mFM_BLOCK_TYPE_FLAT')
+                struct.pack_into('>H',fixture,cp,flat<<2)
+                fp=layout['fg']+(5*fw+x-1)*512;dp=layout['deposit']+(5*fw+x-1)*32
+                fixture[fp:fp+512]=bytes(512);fixture[dp:dp+32]=bytes(32)
+                struct.pack_into('>H',fixture,fp+(13*16+3)*2,0x2001)
+                struct.pack_into('>H',fixture,dp+13*2,1<<3)
+                assert normalize_shoreline(fixture,layout,entries)==[x]
+                items=struct.unpack_from('>256H',fixture,fp)
+                assert items[0]==0x2001 and not any(items[7*16:])
+                assert struct.unpack_from('>16H',fixture,dp)==(1,)+(0,)*15
+                unchanged=bytes(fixture)
+                assert not normalize_shoreline(fixture,layout,entries) and bytes(fixture)==unchanged
             service_map=runpy.run_path(str(here/'world-generation.py'))['world_service_map']
             services=service_map(body,layout,entries,templates,here.parents[1],False)['services']
             assert {s['service'] for s in services if s['service'] in ('night_market','maritime_outfitter','customization')} == \
@@ -54,6 +70,9 @@ if __name__=='__main__':
                 landmark_regions[name].update(s['region'] for s in services if s['service']==name)
             kinds=[entries[struct.unpack_from('>H',body,layout['combi_table']+(z*width+x)*2)[0]>>2][2]
                 for z in range(layout['height']) for x in range(pad,pad+21)]
+            for x in range(pad+1,pad+20):
+                combo=struct.unpack_from('>H',body,layout['combi_table']+(6*width+x)*2)[0]>>2
+                assert entries[combo][2]!='mFM_BLOCK_TYPE_FLAT','inland flat acre at shoreline'
             for kind in ('mFM_BLOCK_TYPE_MUSEUM','mFM_BLOCK_TYPE_POLICE_BOX','mFM_BLOCK_TYPE_SHRINE'):
                 assert kinds.count(kind)==1,kind
             actor_counts={item:0 for item in (0x5808,0x580c,0x5825,0x583b,0x584a,0x584d)}

@@ -200,6 +200,11 @@ void pc_dev_coast_field(void) {
 extern int pc_save_loaded;
 static int dev_player;
 static void choose_spawn(void) {
+    if(g_pc_dev_coast_test==2) {
+        Common_Set(door_data.exit_position.x,(ACO_TOWN_X0+16)*640+320);
+        Common_Set(door_data.exit_position.z,4220);
+        return;
+    }
     if(g_pc_dev_shop_preview) {
         float x,z;
         if(!pc_world_commerce_dev_spawn(g_pc_dev_shop_preview,&x,&z)){fprintf(stderr,"Requested shop is missing from this world.\n");exit(1);}
@@ -287,6 +292,27 @@ void pc_dev_east_start(GAME_PLAY* play) {
 }
 void pc_dev_coast_tick(GAME_PLAY* play) {
     if(!g_pc_dev_coast_test)return;
+    if(g_pc_dev_coast_test==2) {
+        static int frames;static float start_z,stop_z;
+        PLAYER_ACTOR* player=get_player_actor_withoutCheck(play);
+        if(!player || !g_fdinfo)return;
+        xyz_t p=player->actor_class.world.position;
+        if(!frames)start_z=p.z;
+        if(p.z>=4400 || p.y<-5 || Save_Get(scene_no)!=SCENE_FG) {
+            fprintf(stderr,"[BeachTest] FAIL: escaped shoreline (%.1f,%.1f,%.1f)\n",p.x,p.y,p.z);exit(1);
+        }
+        if(frames==360) {
+            stop_z=p.z;
+            if(stop_z-start_z<20) {fprintf(stderr,"[BeachTest] FAIL: no meaningful approach %.1f -> %.1f\n",start_z,stop_z);exit(1);}
+        }
+        g_pc_dev_test_stick_y=frames<360?-80:80;
+        if(++frames==450) {
+            if(stop_z-p.z<40) {fprintf(stderr,"[BeachTest] FAIL: unable to retreat %.1f -> %.1f height=%.1f\n",stop_z,p.z,p.y);exit(1);}
+            printf("[BeachTest] PASS: approached shore from %.1f, stopped at %.1f, retreated to %.1f\n",start_z,stop_z,p.z);
+            fflush(stdout);exit(0);
+        }
+        return;
+    }
     /* Hidden CLI regression for each closed mortgage gate. The player uses
      * the ordinary dry-shore spawn and PAD input, exercising live collision. */
     if(g_pc_dev_progress_stage==0 || g_pc_dev_progress_stage==1) {

@@ -49,7 +49,39 @@ def coastal_connections(save,layout,templates,source_root):
     if layout.get('height',10)>=18:
         enclosed_ocean(save,layout,entries)
         world_service_map(save,layout,entries,templates,source_root,True)
+        normalize_shoreline(save,layout,entries)
     return result
+
+
+def normalize_shoreline(save,layout,entries):
+    """Replace inland flat acres at the coast with native beach mesh/collision.
+
+    Move existing foreground/deposit entries to free northern ground instead
+    of leaving trees or dropped items stranded below the new shoreline.
+    """
+    width=layout['width'];fw=layout['fg_width'];pad=layout.get('town_start',0)
+    beach=next(i for i,e in enumerate(entries) if e[0]=='BG_TYPE_GRD_S_M_1' and e[2]=='mFM_BLOCK_TYPE_BEACH')
+    repaired=[]
+    for x in range(pad+1,pad+20):
+        cp=layout['combi_table']+(6*width+x)*2
+        old=struct.unpack_from('>H',save,cp)[0]
+        if entries[old>>2][2]!='mFM_BLOCK_TYPE_FLAT':continue
+        fp=layout['fg']+(5*fw+x-1)*512
+        dp=layout['deposit']+(5*fw+x-1)*32
+        items=list(struct.unpack_from('>256H',save,fp))
+        rows=struct.unpack_from('>16H',save,dp)
+        deposits=[(rows[i//16]>>(i%16))&1 for i in range(256)]
+        free=[i for i in range(7*16) if items[i]==0 and not deposits[i]]
+        stranded=[i for i in range(7*16,256) if items[i]!=0 or deposits[i]]
+        if len(free)<len(stranded):raise ValueError('Not enough dry ground to preserve shoreline objects')
+        for src,dst in zip(stranded,free):
+            items[dst],items[src]=items[src],0
+            deposits[dst],deposits[src]=deposits[src],0
+        struct.pack_into('>256H',save,fp,*items)
+        struct.pack_into('>16H',save,dp,*(sum(deposits[z*16+ux]<<ux for ux in range(16)) for z in range(16)))
+        struct.pack_into('>H',save,cp,beach<<2)
+        repaired.append(x)
+    return repaired
 
 
 def world_service_map(save,layout,entries,templates=None,source_root=None,apply=True):

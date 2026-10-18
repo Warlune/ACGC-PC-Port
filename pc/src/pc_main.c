@@ -338,6 +338,7 @@ int main(int argc, char* argv[]) {
         else if (strcmp(argv[i], "--dev-shop-test") == 0) { g_pc_dev_shop_test=1; }
         else if (strcmp(argv[i], "--dev-shop-menu") == 0) { g_pc_dev_shop_test=2; }
         else if (strcmp(argv[i], "--dev-coast-test") == 0) { g_pc_dev_coast_test=1; }
+        else if (strcmp(argv[i], "--dev-beach-test") == 0) { g_pc_dev_coast_test=2; }
 #endif
         else if (strcmp(argv[i], "--framelimit") == 0) {
             if (i + 1 < argc && argv[i + 1][0] != '-') {

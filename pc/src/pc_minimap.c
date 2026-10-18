@@ -22,11 +22,10 @@ int pc_minimap_layout(PCMinimapLayout* out, int output_w, int output_h,
     out->view_x=0;out->view_z=PC_MAP_NORTH_CROP;
     out->view_w=BLOCK_X_NUM;out->view_h=PC_MINIMAP_ROWS-PC_MAP_NORTH_CROP;
 #ifdef ACO_DEV_EAST
-    /* Player HUD is local; full-world terrain remains a development export.
-     * Snap the view to acres so cached landmark badges remain stable. */
+    /* Follow continuously across acre boundaries; the terrain atlas stays cached. */
     out->view_w=9;out->view_h=7.25f;
-    out->view_x=fminf(fmaxf(floorf(acre_x)-4,0),BLOCK_X_NUM-out->view_w);
-    out->view_z=fminf(fmaxf(floorf(acre_z)-3,PC_MAP_NORTH_CROP),PC_MINIMAP_ROWS-out->view_h);
+    out->view_x=fminf(fmaxf(acre_x-out->view_w*.5f,0),BLOCK_X_NUM-out->view_w);
+    out->view_z=fminf(fmaxf(acre_z-out->view_h*.5f,PC_MAP_NORTH_CROP),PC_MINIMAP_ROWS-out->view_h);
 #endif
     if (size<0 || size>2) size=0;
     static const float heights[]={60.0f,78.0f,96.0f};

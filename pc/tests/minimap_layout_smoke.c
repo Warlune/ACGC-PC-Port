@@ -34,6 +34,13 @@ int main(void) {
     require(!pc_minimap_layout(&m,640,480,0,NAN,1),"reject non-finite position");
     require(pc_minimap_layout(&m,640,480,99,1,1)&&close_to(m.height,fminf(60.0f,110.0f*m.view_h/m.view_w)),"invalid size falls back to small");
     if(BLOCK_X_NUM>7) {
+        PCMinimapLayout before,after;
+        pc_minimap_layout(&before,1920,1080,0,13.999f,6.999f);
+        pc_minimap_layout(&after,1920,1080,0,14.001f,7.001f);
+        require(fabsf(after.view_x-before.view_x)<.003f && fabsf(after.view_z-before.view_z)<.003f,
+                "view crosses acre boundaries continuously");
+        require(close_to(after.marker_x,after.left+after.width*.5f) &&
+                close_to(after.marker_y,after.top+after.height*.5f),"player centered away from world edges");
         PCMinimapLayout west,center,east;
         require(pc_minimap_layout(&west,1920,1080,0,3.5f,4),"west region visible");
         require(pc_minimap_layout(&center,1920,1080,0,10.5f,4),"center region visible");
