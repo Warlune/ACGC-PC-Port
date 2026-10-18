@@ -131,10 +131,10 @@ int pc_world_progression_region_unlocked(pc_world_region_t region) {
     int i;
 
 #ifdef ACO_DEV_EAST
-    if (g_pc_dev_east && g_pc_dev_progress_stage >= 0 && g_pc_dev_progress_stage <= 2) {
-        return pc_world_progression_unlocked_at_test_stage(g_pc_dev_progress_stage, region);
-    }
-    if (g_pc_dev_east && g_pc_dev_unlock_regions) {
+    /* Expanded towns are open for exploration. Keep the native shoreline
+     * collision and suppress regional fences, including in older dev launchers
+     * that still supply a mortgage-stage override. */
+    if (g_pc_dev_east) {
         return region == PC_WORLD_REGION_WEST || region == PC_WORLD_REGION_EAST;
     }
 #endif

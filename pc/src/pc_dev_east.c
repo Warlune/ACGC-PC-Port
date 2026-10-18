@@ -338,7 +338,8 @@ void pc_dev_coast_tick(GAME_PLAY* play) {
     }
     /* Hidden CLI regression for each closed mortgage gate. The player uses
      * the ordinary dry-shore spawn and PAD input, exercising live collision. */
-    if(g_pc_dev_progress_stage==0 || g_pc_dev_progress_stage==1) {
+    if((g_pc_dev_progress_stage==0 && !pc_world_progression_region_unlocked(PC_WORLD_REGION_EAST)) ||
+       (g_pc_dev_progress_stage==1 && !pc_world_progression_region_unlocked(PC_WORLD_REGION_WEST))) {
         static int gate_test_phase,gate_test_frames,gate_test_seam;
         static int gate_test_stall_frames;
         static float gate_test_start,gate_test_last_x;
